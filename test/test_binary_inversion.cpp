@@ -7,37 +7,27 @@ extern "C" {
 #include "binary_inversion.h"
 }
 
-using uint64_t_array_2 = std::array<uint64_t, 2>;
-
-static void poly128_t_to_uint64_t_array(uint64_t_array_2 &out, poly128_t poly) {
-    vst1q_u64(out.data(), vreinterpretq_u64_p128(poly));
-}
-
-static void binary_polynomial_multiplication_64x64_to_128_(const poly64_t a[1], const poly64_t b[1],
-    poly128_t c[1]) {
-    c[0] = binary_polynomial_multiplication_64x64_to_128(a[0], b[0]);
-}
-
 template <size_t N>
 struct binary_polynomial_multiplication_test_case_t {
-    uint64_t a[N], b[N], r[2*N];
+    std::array<uint64_t, N> a;
+    std::array<uint64_t, N> b;
+    std::array<uint64_t, 2*N> r;
 };
 
 template <size_t N>
-static void poly128N_t_to_uint64_t_array(std::array<uint64_t, 2 * N> &out, const poly128_t poly[N]) {
+static void poly128N_t_to_uint64_t_array(std::array<uint64_t, 2*N> &out, poly128_t (&poly)[N]) {
     for (size_t i = 0; i < N; i++) {
-        uint64_t_array_2 aux;
-        poly128_t_to_uint64_t_array(aux, poly[i]);
+        uint64x2_t v = vreinterpretq_u64_p128(poly[i]);
 
-        out[2*i] = aux[0];
-        out[2*i + 1] = aux[1];
+        out[2*i]     = vgetq_lane_u64(v, 0);
+        out[2*i + 1] = vgetq_lane_u64(v, 1);
     }
 }
 
-template <size_t N, size_t Cases>
+template <size_t N, size_t cases>
 static void test_multiplication_64Nx64N_to_128N(
-    const binary_polynomial_multiplication_test_case_t<N> (&test_cases)[Cases],
-    void (*multiplication_func)(const poly64_t*, const poly64_t*, poly128_t*)) {
+    const binary_polynomial_multiplication_test_case_t<N> (&test_cases)[cases],
+    void (*multiplication_func)(poly64_t*, poly64_t*, poly128_t*)) {
     for (const auto &tc : test_cases) {
         poly64_t a[N];
         poly64_t b[N];
@@ -47,20 +37,18 @@ static void test_multiplication_64Nx64N_to_128N(
             b[i] = vget_lane_p64(vdup_n_p64(tc.b[i]), 0);
         }
 
-        std::array<uint64_t, 2 * N> expected;
-        for (size_t i = 0; i < 2 * N; i++) {
-            expected[i] = tc.r[i];
-        }
+        const auto expected = tc.r;
 
         poly128_t c[N];
         multiplication_func(a, b, c);
 
-        std::array<uint64_t, 2 * N> got;
+        std::array<uint64_t, 2*N> got;
         poly128N_t_to_uint64_t_array<N>(got, c);
 
         REQUIRE(got == expected);
     }
 }
+
 const binary_polynomial_multiplication_test_case_t<1> test_cases_64[] = {
     {{0x0}, {0x0}, {0x0, 0x0}},
     {{0x1}, {0x1}, {0x1, 0x0}},
@@ -135,7 +123,7 @@ const binary_polynomial_multiplication_test_case_t<4> test_cases_256[] = {
 };
 
 TEST_CASE("binary polynomial multiplication 64x64->128 works") {
-    test_multiplication_64Nx64N_to_128N(test_cases_64, binary_polynomial_multiplication_64x64_to_128_);
+    test_multiplication_64Nx64N_to_128N(test_cases_64, binary_polynomial_multiplication_64x64_to_128);
 }
 
 TEST_CASE("binary polynomial multiplication 128x128->256 works") {
