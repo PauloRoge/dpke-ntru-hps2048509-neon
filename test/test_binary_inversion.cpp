@@ -19,7 +19,7 @@ static void poly128N_t_to_uint64_t_array(std::array<uint64_t, 2*N> &out, poly128
     for (size_t i = 0; i < N; i++) {
         uint64x2_t v = vreinterpretq_u64_p128(poly[i]);
 
-        out[2*i]     = vgetq_lane_u64(v, 0);
+        out[2*i] = vgetq_lane_u64(v, 0);
         out[2*i + 1] = vgetq_lane_u64(v, 1);
     }
 }
@@ -37,7 +37,7 @@ static void test_multiplication_64Nx64N_to_128N(
             b[i] = vget_lane_p64(vdup_n_p64(tc.b[i]), 0);
         }
 
-        const auto expected = tc.r;
+        std::array<uint64_t, 2 * N> expected = tc.r;
 
         poly128_t c[N];
         multiplication_func(a, b, c);
