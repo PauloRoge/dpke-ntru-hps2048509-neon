@@ -49,3 +49,7 @@ void binary_polynomial_multiplication_256x256_to_512(poly64_t a[4], poly64_t b[4
     binary_polynomial_multiplication(a, b, c, 4);
 }
 
+void binary_polynomial_multiplication_512x512_to_1024(poly64_t a[8], poly64_t b[8], poly128_t c[8]){
+    binary_polynomial_multiplication(a, b, c, 8);
+}
+

@@ -96,31 +96,6 @@ static void test_multiplication_64Nx64N_to_128N(
     }
 }
 
-// template <size_t N, size_t cases>
-// static void test_multiplication_64Nx64N_to_128N(
-//     const binary_polynomial_multiplication_test_case_t<N> (&test_cases)[cases],
-//     void (*multiplication_func)(poly64_t*, poly64_t*, poly128_t*)) {
-//     for (const auto &tc : test_cases) {
-//         poly64_t a[N];
-//         poly64_t b[N];
-
-//         for (size_t i = 0; i < N; i++) {
-//             a[i] = vget_lane_p64(vdup_n_p64(tc.a[i]), 0);
-//             b[i] = vget_lane_p64(vdup_n_p64(tc.b[i]), 0);
-//         }
-
-//         std::array<uint64_t, 2 * N> expected = tc.r;
-
-//         poly128_t c[N];
-//         multiplication_func(a, b, c);
-
-//         std::array<uint64_t, 2*N> got;
-//         poly128N_t_to_uint64_t_array<N>(got, c);
-
-//         REQUIRE(got == expected);
-//     }
-// }
-
 const binary_polynomial_multiplication_test_case_t<1> test_cases_64[] = {
     {{0x0}, {0x0}, {0x0, 0x0}},
     {{0x1}, {0x1}, {0x1, 0x0}},
@@ -194,6 +169,72 @@ const binary_polynomial_multiplication_test_case_t<4> test_cases_256[] = {
       UINT64_C(0x5555555555555555), UINT64_C(0x5555555555555555)}},
 };
 
+const binary_polynomial_multiplication_test_case_t<8> test_cases_512[] = {
+    // 0 * 0 = 0
+    {{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+     {0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+     {0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+      0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}},
+
+    // 1 * 1 = 1
+    {{0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+     {0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+     {0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+      0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}},
+
+    // x^64 * 1 = x^64
+    {{0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+     {0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+     {0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+      0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}},
+
+    // x^448 * 1 = x^448
+    {{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1},
+     {0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+     {0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1,
+      0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}},
+
+    // random
+    {{UINT64_C(0x123456789abcdef0), UINT64_C(0x0fedcba987654321),
+      UINT64_C(0x55aa55aa55aa55aa), UINT64_C(0xaa55aa55aa55aa55),
+      UINT64_C(0x0123456789abcdef), UINT64_C(0xfedcba9876543210),
+      UINT64_C(0x0f0f0f0f0f0f0f0f), UINT64_C(0xf0f0f0f0f0f0f0f0)},
+
+     {UINT64_C(0xfedcba9876543210), UINT64_C(0x0123456789abcdef),
+      UINT64_C(0xaa55aa55aa55aa55), UINT64_C(0x55aa55aa55aa55aa),
+      UINT64_C(0x0fedcba987654321), UINT64_C(0x123456789abcdef0),
+      UINT64_C(0xf0f0f0f0f0f0f0f0), UINT64_C(0x0f0f0f0f0f0f0f0f)},
+
+     {UINT64_C(0x0a0789828c810f00), UINT64_C(0x0b4688c28dc00e44),
+      UINT64_C(0x399a508895c9fcdf), UINT64_C(0x5d9e88b389b55c98),
+      UINT64_C(0x44bffb7d6e6ad1a8), UINT64_C(0x20ab7347320621aa),
+      UINT64_C(0x2b5c8748c60e2a5a), UINT64_C(0x1a1d5a27cf378f0d),
+      UINT64_C(0x3a1390c111c7bb15), UINT64_C(0x0b421daf58ee4e07),
+      UINT64_C(0x399ec5e540e7bc9c), UINT64_C(0x6d8a91f014f3e88d),
+      UINT64_C(0x5bf2a40aa40d5bf5), UINT64_C(0x5bf2a40aa40d5bf5),
+      UINT64_C(0x5005500550055005), UINT64_C(0x0550055005500550)}},
+
+    // all ones
+    {{UINT64_C(0xffffffffffffffff), UINT64_C(0xffffffffffffffff),
+      UINT64_C(0xffffffffffffffff), UINT64_C(0xffffffffffffffff),
+      UINT64_C(0xffffffffffffffff), UINT64_C(0xffffffffffffffff),
+      UINT64_C(0xffffffffffffffff), UINT64_C(0xffffffffffffffff)},
+
+     {UINT64_C(0xffffffffffffffff), UINT64_C(0xffffffffffffffff),
+      UINT64_C(0xffffffffffffffff), UINT64_C(0xffffffffffffffff),
+      UINT64_C(0xffffffffffffffff), UINT64_C(0xffffffffffffffff),
+      UINT64_C(0xffffffffffffffff), UINT64_C(0xffffffffffffffff)},
+
+     {UINT64_C(0x5555555555555555), UINT64_C(0x5555555555555555),
+      UINT64_C(0x5555555555555555), UINT64_C(0x5555555555555555),
+      UINT64_C(0x5555555555555555), UINT64_C(0x5555555555555555),
+      UINT64_C(0x5555555555555555), UINT64_C(0x5555555555555555),
+      UINT64_C(0x5555555555555555), UINT64_C(0x5555555555555555),
+      UINT64_C(0x5555555555555555), UINT64_C(0x5555555555555555),
+      UINT64_C(0x5555555555555555), UINT64_C(0x5555555555555555),
+      UINT64_C(0x5555555555555555), UINT64_C(0x5555555555555555)}},
+};
+
 TEST_CASE("binary polynomial multiplication 64x64->128 works") {
     test_multiplication_64Nx64N_to_128N(test_cases_64, binary_polynomial_multiplication_64x64_to_128);
 }
@@ -204,4 +245,8 @@ TEST_CASE("binary polynomial multiplication 128x128->256 works") {
 
 TEST_CASE("binary polynomial multiplication 256x256->512 works") {
     test_multiplication_64Nx64N_to_128N(test_cases_256, binary_polynomial_multiplication_256x256_to_512);
+}
+
+TEST_CASE("binary polynomial multiplication 512x512->1024 works") {
+    test_multiplication_64Nx64N_to_128N(test_cases_512, binary_polynomial_multiplication_512x512_to_1024);
 }
