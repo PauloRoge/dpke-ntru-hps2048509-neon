@@ -48,6 +48,21 @@ static void ref_poly_mul(
     }
 }
 
+static void reduce_mod509(const std::array<uint64_t, 16>& x, std::array<uint64_t, 8>& h) {
+    std::array<uint64_t, 8> hi{};
+
+    for (size_t i = 0; i < 7; i++) {
+        hi[i] = (x[i + 7] >> 61) | (x[i + 8] << 3);
+    }
+    hi[7] = (x[14] >> 61) | (x[15] << 3);
+
+    for (size_t i = 0; i < 8; i++) {
+        h[i] = x[i] ^ hi[i];
+    }
+
+    h[7] &= ((UINT64_C(1) << 61) - 1);
+}
+
 template <size_t N>
 static void uint8_array_to_uint64_2N(
     const uint8_t in[128 * N - 1],
@@ -58,6 +73,22 @@ static void uint8_array_to_uint64_2N(
     for (size_t i = 0; i < 128 * N - 1; i++) {
                 out[i / 64] |= (uint64_t(in[i] &1) << (i % 64));
     }
+}
+
+TEST_CASE("reduce mod x^{509}-1") {
+    std::array<uint64_t, 16> in{};
+    std::array<uint64_t, 8> out{};
+    std::array<uint64_t, 8> expected{};
+
+    in[0] = UINT64_C(0x1);
+
+    in[7] |= (UINT64_C(1) << 61);
+
+    reduce_mod509(in, out);
+
+    expected.fill(0);
+
+    REQUIRE(out == expected);
 }
 
 template <size_t N, size_t cases>
