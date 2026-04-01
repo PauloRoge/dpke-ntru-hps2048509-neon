@@ -10,7 +10,10 @@ include(CTest)
 enable_testing()
 include(cmake/doctest.cmake)
 
-add_library(binary_inversion STATIC src/binary_inversion.c)
+add_library(binary_inversion STATIC
+    src/binary_inversion.c
+    src/poly_mod.c
+)
 target_include_directories(binary_inversion PUBLIC src)
 
 add_executable(test_binary_inversion test/test_binary_inversion.cpp)

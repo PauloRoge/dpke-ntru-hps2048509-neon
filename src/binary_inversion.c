@@ -13,8 +13,9 @@ void binary_polynomial_multiplication(poly64_t *a, poly64_t *b,
      poly128_t *c, size_t N){
     
     uint64_t out[2 * N];
-
-    for (size_t i = 0; i < 2 * N; i++) {
+     
+    // 0 é elemento neutro da operação XOR
+    for (size_t i = 0; i < (2*N); i++) {
         out[i] = 0;
     }
 

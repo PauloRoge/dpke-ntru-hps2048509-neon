@@ -6,13 +6,14 @@
 
 extern "C" {
 #include "binary_inversion.h"
+#include "poly_mod.h"
 }
 
 template <size_t N>
 struct binary_polynomial_multiplication_test_case_t {
-    std::array<uint64_t, N> a;
-    std::array<uint64_t, N> b;
-    std::array<uint64_t, 2*N> r;
+    std::array<uint64_t, N>     a;
+    std::array<uint64_t, N>     b;
+    std::array<uint64_t, 2*N>   r;
 };
 
 template <size_t N>
@@ -26,10 +27,11 @@ static void poly128N_t_to_uint64_t_array(std::array<uint64_t, 2*N> &out, poly128
 }
 
 // Funções para reference_mul
+// Representar polinômios como vetor de coeficientes binários, para implementação de referência bit a bit
 template <size_t N>
-static void uint64N_to_uint8_array(const std::array<uint64_t, N>& in, uint8_t out[64 * N]) {
+static void uint64N_to_uint8_array(const std::array<uint64_t, N>& poly, uint8_t v[64 * N]) {
     for (size_t i = 0; i < 64 * N; i++) {
-        out[i] = (in[i / 64] >> (i % 64)) & 1;
+        v[i] = (poly[i / 64] >> (i % 64)) & 1;
     }
 }
 
@@ -48,26 +50,8 @@ static void ref_poly_mul(
     }
 }
 
-static void reduce_mod509(const std::array<uint64_t, 16>& x, std::array<uint64_t, 8>& h) {
-    std::array<uint64_t, 8> hi{};
-
-    for (size_t i = 0; i < 7; i++) {
-        hi[i] = (x[i + 7] >> 61) | (x[i + 8] << 3);
-    }
-    hi[7] = (x[14] >> 61) | (x[15] << 3);
-
-    for (size_t i = 0; i < 8; i++) {
-        h[i] = x[i] ^ hi[i];
-    }
-
-    h[7] &= ((UINT64_C(1) << 61) - 1);
-}
-
 template <size_t N>
-static void uint8_array_to_uint64_2N(
-    const uint8_t in[128 * N - 1],
-    std::array<uint64_t, 2 * N>& out
-) {
+static void uint8_array_to_uint64_2N(const uint8_t in[128 * N - 1], std::array<uint64_t, 2 * N>& out) {
     out.fill(0);
 
     for (size_t i = 0; i < 128 * N - 1; i++) {
@@ -75,20 +59,34 @@ static void uint8_array_to_uint64_2N(
     }
 }
 
-TEST_CASE("reduce mod x^{509}-1") {
-    std::array<uint64_t, 16> in{};
-    std::array<uint64_t, 8> out{};
-    std::array<uint64_t, 8> expected{};
+// Funções para redução modular de referência.
+static uint8_t get_coeff(const uint64_t a[], size_t n) {
+    return (uint8_t)((a[n / 64] >> (n % 64)) & 1ULL);
+}
 
-    in[0] = UINT64_C(0x1);
+static void set_coeff(uint64_t a[], size_t n, uint8_t v) {
+    uint64_t mask = 1ULL << (n % 64);
 
-    in[7] |= (UINT64_C(1) << 61);
+    if (v) {
+        a[n / 64] |= mask;
+    } else {
+        a[n / 64] &= ~mask;
+    }
+}
 
-    reduce_mod509(in, out);
+template <size_t N>
+static void reference_reduce_mod_x509(const std::array<uint64_t, 2 * N>& c, std::array<uint64_t, 8>& h) {
+    h.fill(0);
 
-    expected.fill(0);
+    for (size_t i = 0; i < 128 * N; i++) {
+        uint8_t bit = get_coeff(c.data(), i);
 
-    REQUIRE(out == expected);
+        if (bit) {
+            size_t j = i % 509;
+            uint8_t old = get_coeff(h.data(), j);
+            set_coeff(h.data(), j, old ^ 1);
+        }
+    }
 }
 
 template <size_t N, size_t cases>
@@ -124,6 +122,48 @@ static void test_multiplication_64Nx64N_to_128N(
 
         REQUIRE(got == expected);
         REQUIRE(expected == tc.r);
+    }
+}
+
+template <size_t cases>
+static void test_multiplication_mod_x509(
+    const binary_polynomial_multiplication_test_case_t<8> (&test_cases)[cases]
+) {
+    const uint64_t mask61 = (UINT64_C(1) << 61) - 1;
+
+    for (const auto& tc : test_cases) {
+        std::array<uint64_t, 8> a_mask = tc.a;
+        std::array<uint64_t, 8> b_mask = tc.b;
+
+        a_mask[7] &= mask61;
+        b_mask[7] &= mask61;
+
+        poly64_t a[8];
+        poly64_t b[8];
+
+        for (size_t i = 0; i < 8; i++) {
+            a[i] = vget_lane_p64(vdup_n_p64(a_mask[i]), 0);
+            b[i] = vget_lane_p64(vdup_n_p64(b_mask[i]), 0);
+        }
+
+        std::array<uint64_t, 8> got;
+        binary_polynomial_mul_mod509(a, b, got.data());
+
+        uint8_t a_ref[64 * 8];
+        uint8_t b_ref[64 * 8];
+        uint8_t c_ref[128 * 8 - 1];
+
+        uint64N_to_uint8_array(a_mask, a_ref);
+        uint64N_to_uint8_array(b_mask, b_ref);
+        ref_poly_mul(a_ref, b_ref, c_ref, 64 * 8);
+
+        std::array<uint64_t, 16> product_ref;
+        uint8_array_to_uint64_2N<8>(c_ref, product_ref);
+
+        std::array<uint64_t, 8> expected;
+        reference_reduce_mod_x509<8>(product_ref, expected);
+
+        REQUIRE(got == expected);
     }
 }
 
@@ -280,4 +320,8 @@ TEST_CASE("binary polynomial multiplication 256x256->512 works") {
 
 TEST_CASE("binary polynomial multiplication 512x512->1024 works") {
     test_multiplication_64Nx64N_to_128N(test_cases_512, binary_polynomial_multiplication_512x512_to_1024);
+}
+
+TEST_CASE("binary polynomial multiplication mod x^509 - 1 works") {
+    test_multiplication_mod_x509(test_cases_512);
 }

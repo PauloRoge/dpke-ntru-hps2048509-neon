@@ -7,7 +7,8 @@
 extern "C" {
 #endif
 
-void binary_polynomial_multiplication_64x64_to_128(poly64_t *a, poly64_t *b, poly128_t *c);
+void binary_polynomial_multiplication_64x64_to_128(poly64_t *a, poly64_t *b,
+     poly128_t *c);
 
 void binary_polynomial_multiplication_128x128_to_256(poly64_t a[2], poly64_t b[2],
     poly128_t c[2]);
