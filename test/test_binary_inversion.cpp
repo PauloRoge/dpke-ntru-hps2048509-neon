@@ -325,3 +325,11 @@ TEST_CASE("binary polynomial multiplication 512x512->1024 works") {
 TEST_CASE("binary polynomial multiplication mod x^509 - 1 works") {
     test_multiplication_mod_x509(test_cases_512);
 }
+
+TEST_CASE("mul_karatsuba 128x128->256 works") {
+    test_multiplication_64Nx64N_to_128N(test_cases_128, mul_karatsuba);
+}
+
+TEST_CASE("mul_karatsuba 256x256->512 works") {
+    test_multiplication_64Nx64N_to_128N(test_cases_256, mul_karatsuba256x256);
+}
