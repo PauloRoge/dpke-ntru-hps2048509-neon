@@ -41,6 +41,12 @@ void binary_polynomial_multiplication(poly64_t *a, poly64_t *b,
         c[i] = vreinterpretq_p128_u64(v);
     }
 }
+// função de soma multidigito
+void binary_polynomial_addition(const poly64_t *a, const poly64_t *b, poly64_t *c, size_t N) {
+    for (size_t i = 0; i < N; i++) {
+        c[i] = a[i] ^ b[i];
+    }
+}
 
 void mul_karatsuba(poly64_t a[2], poly64_t b[2], poly128_t c[2]) {
     poly128_t z0, z1, z2;
@@ -54,6 +60,7 @@ void mul_karatsuba(poly64_t a[2], poly64_t b[2], poly128_t c[2]) {
     // z1 = (a0 ^ a1) * (b0 ^ b1)
     poly64_t a_xor = a[0] ^ a[1];
     poly64_t b_xor = b[0] ^ b[1];
+
     binary_polynomial_multiplication_64x64_to_128(&a_xor, &b_xor, &z1);
 
     // extrai low/high de cada produto 128-bit
@@ -108,15 +115,12 @@ void mul_karatsuba256x256(poly64_t a[4], poly64_t b[4], poly128_t c[4]) {
     // z2 = a1 * b1
     mul_karatsuba(a1, b1, z2);
 
-    // (a0 ^ a1) e (b0 ^ b1)
+    // termo cruzado (a0 ^ a1) e (b0 ^ b1)
     poly64_t a_xor[2];
     poly64_t b_xor[2];
 
-    a_xor[0] = a0[0] ^ a1[0];
-    a_xor[1] = a0[1] ^ a1[1];
-
-    b_xor[0] = b0[0] ^ b1[0];
-    b_xor[1] = b0[1] ^ b1[1];
+    binary_polynomial_addition(a0, a1, a_xor, 2);
+    binary_polynomial_addition(b0, b1, b_xor, 2);
 
     // z1 = (a0 ^ a1)(b0 ^ b1)
     mul_karatsuba(a_xor, b_xor, z1);
@@ -150,20 +154,9 @@ void mul_karatsuba256x256(poly64_t a[4], poly64_t b[4], poly128_t c[4]) {
     // Resultado final (8 words)
     uint64_t out[8] = {0};
 
-    out[0] ^= z0w[0];
-    out[1] ^= z0w[1];
-    out[2] ^= z0w[2];
-    out[3] ^= z0w[3];
-
-    out[2] ^= mid[0];
-    out[3] ^= mid[1];
-    out[4] ^= mid[2];
-    out[5] ^= mid[3];
-
-    out[4] ^= z2w[0];
-    out[5] ^= z2w[1];
-    out[6] ^= z2w[2];
-    out[7] ^= z2w[3];
+    binary_polynomial_addition(&out[0], z0w, &out[0], 4);
+    binary_polynomial_addition(&out[2], mid, &out[2], 4);
+    binary_polynomial_addition(&out[4], z2w, &out[4], 4);
 
     for (int i = 0; i < 4; i++) {
         uint64x2_t v = vdupq_n_u64(0);
@@ -176,7 +169,6 @@ void mul_karatsuba256x256(poly64_t a[4], poly64_t b[4], poly128_t c[4]) {
 void mul_karatsuba512x512(poly64_t a[8], poly64_t b[8], poly128_t c[8]) {
     // a = a1 * x^256 + a0
     // b = b1 * x^256 + b0
-
     poly64_t a0[4] = {a[0], a[1], a[2], a[3]};
     poly64_t a1[4] = {a[4], a[5], a[6], a[7]};
     poly64_t b0[4] = {b[0], b[1], b[2], b[3]};
@@ -196,10 +188,8 @@ void mul_karatsuba512x512(poly64_t a[8], poly64_t b[8], poly128_t c[8]) {
     poly64_t a_xor[4];
     poly64_t b_xor[4];
 
-    for (int i = 0; i < 4; i++) {
-        a_xor[i] = a0[i] ^ a1[i];
-        b_xor[i] = b0[i] ^ b1[i];
-    }
+    binary_polynomial_addition(a0, a1, a_xor, 4);
+    binary_polynomial_addition(b0, b1, b_xor, 4);
 
     mul_karatsuba256x256(a_xor, b_xor, z1);
 
@@ -224,20 +214,14 @@ void mul_karatsuba512x512(poly64_t a[8], poly64_t b[8], poly128_t c[8]) {
     }
 
     uint64_t mid[8];
-    
     for (int i = 0; i < 8; i++)
         mid[i] = z1w[i] ^ z0w[i] ^ z2w[i];
 
     uint64_t out[16] = {0};
 
-    for (int i = 0; i < 8; i++)
-        out[i] ^= z0w[i];
-
-    for (int i = 0; i < 8; i++)
-        out[i + 4] ^= mid[i];
-
-    for (int i = 0; i < 8; i++)
-        out[i + 8] ^= z2w[i];
+    binary_polynomial_addition(out, z0w, out, 8);
+    binary_polynomial_addition(&out[4], mid, &out[4], 8);
+    binary_polynomial_addition(&out[8], z2w, &out[8], 8);
 
     // Empacotar em poly128_t c[8]
     for (int i = 0; i < 8; i++) {
@@ -259,4 +243,3 @@ void binary_polynomial_multiplication_256x256_to_512(poly64_t a[4], poly64_t b[4
 void binary_polynomial_multiplication_512x512_to_1024(poly64_t a[8], poly64_t b[8], poly128_t c[8]){
     binary_polynomial_multiplication(a, b, c, 8);
 }
-
