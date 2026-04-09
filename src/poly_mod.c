@@ -8,15 +8,13 @@
 void reduce_mod509(const uint64_t c[16], uint64_t h[8]) {
     uint64_t hi[8];
 
-    for (size_t i = 0; i < 7; i++) {
+    for (size_t i = 0; i < 7; i++)
         hi[i] = (c[i + 7] >> 61) | (c[i + 8] << 3);
-    }
 
     hi[7] = (c[14] >> 61) | (c[15] << 3);
 
-    for (size_t i = 0; i < 8; i++) {
+    for (size_t i = 0; i < 8; i++)
         h[i] = c[i] ^ hi[i];
-    }
 
     h[7] &= (UINT64_C(1) << 61) - 1;
 }

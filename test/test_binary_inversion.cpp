@@ -30,9 +30,8 @@ static void poly128N_t_to_uint64_t_array(std::array<uint64_t, 2*N> &out, poly128
 // Representar polinômios como vetor de coeficientes binários, para implementação de referência bit a bit
 template <size_t N>
 static void uint64N_to_uint8_array(const std::array<uint64_t, N>& poly, uint8_t v[64 * N]) {
-    for (size_t i = 0; i < 64 * N; i++) {
+    for (size_t i = 0; i < 64 * N; i++)
         v[i] = (poly[i / 64] >> (i % 64)) & 1;
-    }
 }
 
 static void ref_poly_mul(
@@ -43,20 +42,17 @@ static void ref_poly_mul(
 ) {
     std::memset(c, 0, (2 * ncoeffs - 1) * sizeof(uint8_t));
 
-    for (size_t j = 0; j < ncoeffs; j++) {
-        for (size_t i = 0; i < ncoeffs; i++) {
+    for (size_t j = 0; j < ncoeffs; j++)
+        for (size_t i = 0; i < ncoeffs; i++)
             c[i + j] ^= static_cast<uint8_t>(a[i] & b[j]);
-        }
-    }
 }
 
 template <size_t N>
 static void uint8_array_to_uint64_2N(const uint8_t in[128 * N - 1], std::array<uint64_t, 2 * N>& out) {
     out.fill(0);
 
-    for (size_t i = 0; i < 128 * N - 1; i++) {
+    for (size_t i = 0; i < 128 * N - 1; i++)
                 out[i / 64] |= (uint64_t(in[i] &1) << (i % 64));
-    }
 }
 
 // Funções para redução modular de referência.
@@ -164,6 +160,42 @@ static void test_multiplication_mod_x509(
         reference_reduce_mod_x509<8>(product_ref, expected);
 
         REQUIRE(got == expected);
+    }
+}
+
+
+template <size_t N, size_t cases>
+static void test_multiplication_karatsuba_64Nx64N_to_128N(
+    const binary_polynomial_multiplication_test_case_t<N> (&test_cases)[cases], 
+    void (*multiplication_func)(poly64_t*, poly64_t*, poly128_t*)) {
+    for (const auto& tc : test_cases) {
+        poly64_t a[N];
+        poly64_t b[N];
+
+        for (size_t i = 0; i < N; i++) {
+            a[i] = vget_lane_p64(vdup_n_p64(tc.a[i]), 0);
+            b[i] = vget_lane_p64(vdup_n_p64(tc.b[i]), 0);
+        }
+
+        poly128_t c[N];
+        multiplication_func(a, b, c);
+
+        std::array<uint64_t, 2 * N> got;
+        poly128N_t_to_uint64_t_array<N>(got, c);
+
+        uint8_t a_ref[64 * N];
+        uint8_t b_ref[64 * N];
+        uint8_t c_ref[128 * N - 1];
+
+        uint64N_to_uint8_array(tc.a, a_ref);
+        uint64N_to_uint8_array(tc.b, b_ref);
+        ref_poly_mul(a_ref, b_ref, c_ref, 64 * N);
+
+        std::array<uint64_t, 2 * N> expected;
+        uint8_array_to_uint64_2N<N>(c_ref, expected);
+
+        REQUIRE(got == expected);
+        REQUIRE(expected == tc.r);
     }
 }
 
@@ -326,14 +358,14 @@ TEST_CASE("binary polynomial multiplication mod x^509 - 1 works") {
     test_multiplication_mod_x509(test_cases_512);
 }
 
-TEST_CASE("mul_karatsuba 128x128->256 works") {
-    test_multiplication_64Nx64N_to_128N(test_cases_128, mul_karatsuba);
+TEST_CASE("multiplication karatsuba 128x128->256 works") {
+    test_multiplication_karatsuba_64Nx64N_to_128N(test_cases_128, mul_karatsuba_128x128_to_256);
 }
 
-TEST_CASE("mul_karatsuba 256x256->512 works") {
-    test_multiplication_64Nx64N_to_128N(test_cases_256, mul_karatsuba256x256);
+TEST_CASE("multiplication karatsuba 256x256->512 works") {
+    test_multiplication_karatsuba_64Nx64N_to_128N(test_cases_256, mul_karatsuba_256x256_to_512);
 }
 
-TEST_CASE("mul_karatsuba512x512 512x512->1024 works") {
-    test_multiplication_64Nx64N_to_128N(test_cases_512, mul_karatsuba512x512);
+TEST_CASE("multiplication karatsuba 512x512->1024 works") {
+    test_multiplication_karatsuba_64Nx64N_to_128N(test_cases_512, mul_karatsuba_512x512_to_1024);
 }
