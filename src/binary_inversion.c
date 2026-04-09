@@ -6,7 +6,7 @@
 
 // Caso base
 void binary_polynomial_multiplication_64x64_to_128(poly64_t *a, poly64_t *b, poly128_t *c);
-void mul_karatsuba_64x64_to_128(poly64_t a[2], poly64_t b[2], poly128_t c[2]);
+void mul_karatsuba_128x128_to_256(poly64_t a[2], poly64_t b[2], poly128_t c[2]);
 void binary_polynomial_addition(const poly64_t *a, const poly64_t *b, poly64_t *c, size_t N);
 
 // Funções recursivas escaláveis para multiplicação polinomial binaria
@@ -44,7 +44,7 @@ void binary_polynomial_multiplication(poly64_t *a, poly64_t *b, poly128_t *c, si
 void mul_karatsuba_64Nx64N_to_128N(const poly64_t *a, const poly64_t *b, poly128_t *c, size_t N) {
 
     if (N == 2) {
-        mul_karatsuba_64x64_to_128((poly64_t *)a, (poly64_t *)b, c);
+        mul_karatsuba_128x128_to_256(a, b, c);
         return;
     }
 
@@ -75,9 +75,9 @@ void mul_karatsuba_64Nx64N_to_128N(const poly64_t *a, const poly64_t *b, poly128
     // z1 = (a0^a1) * (b0^b1)
     mul_karatsuba_64Nx64N_to_128N(a_xor, b_xor, z1, N/2);
 
-    uint64_t z0w[2*N/2];
-    uint64_t z1w[2*N/2];
-    uint64_t z2w[2*N/2];
+    uint64_t z0w[N];
+    uint64_t z1w[N];
+    uint64_t z2w[N];
 
     for (size_t i = 0; i < N/2; i++) {
         uint64x2_t v0 = vreinterpretq_u64_p128(z0[i]);
@@ -107,7 +107,7 @@ void mul_karatsuba_64Nx64N_to_128N(const poly64_t *a, const poly64_t *b, poly128
 
     binary_polynomial_addition(out, z0w, out, 2 * N/2);
     binary_polynomial_addition(&out[N/2], mid, &out[N/2], 2 * N/2);
-    binary_polynomial_addition(&out[2*N/2], z2w, &out[2*N/2], 2 * N/2);
+    binary_polynomial_addition(&out[N], z2w, &out[N], 2 * N);
 
     // empacota em poly128_t c[N]
     for (size_t i = 0; i < N; i++) {
@@ -135,7 +135,7 @@ void binary_polynomial_multiplication_512x512_to_1024(poly64_t a[8], poly64_t b[
     binary_polynomial_multiplication(a, b, c, 8);
 }
 
-void mul_karatsuba_64x64_to_128(poly64_t a[2], poly64_t b[2], poly128_t c[2]) {
+void mul_karatsuba_128x128_to_256(poly64_t a[2], poly64_t b[2], poly128_t c[2]) {
     poly128_t z0, z1, z2;
 
     // z0 = a0 * b0
@@ -184,10 +184,6 @@ void mul_karatsuba_64x64_to_128(poly64_t a[2], poly64_t b[2], poly128_t c[2]) {
     v1 = vsetq_lane_u64(out2, v1, 0);
     v1 = vsetq_lane_u64(out3, v1, 1);
     c[1] = vreinterpretq_p128_u64(v1);
-}
-
-void mul_karatsuba_128x128_to_256(poly64_t a[2], poly64_t b[2], poly128_t c[2]) {
-    mul_karatsuba_64Nx64N_to_128N(a, b, c, 2);
 }
 
 void mul_karatsuba_256x256_to_512(poly64_t a[4], poly64_t b[4], poly128_t c[4]) {
