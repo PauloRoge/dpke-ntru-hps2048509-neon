@@ -50,9 +50,9 @@ void mul_karatsuba_64Nx64N_to_128N(const poly64_t *a, const poly64_t *b, poly128
 
     // divide a e b em metades
     const poly64_t *a0 = a;
-    const poly64_t *a1 = a + N/2;
+    const poly64_t *a1 = &a[N/2];
     const poly64_t *b0 = b;
-    const poly64_t *b1 = b + N/2;
+    const poly64_t *b1 = &b[N/2];
 
     // buffers temporários
     poly64_t a_xor[N/2];
