@@ -9,6 +9,7 @@ add_compile_options(-march=armv8-a+crypto)
 include(CTest)
 enable_testing()
 include(cmake/doctest.cmake)
+include(cmake/libcpucycles.cmake)
 
 add_library(binary_inversion STATIC
     src/binary_inversion.c
@@ -21,3 +22,15 @@ target_include_directories(test_binary_inversion PRIVATE doctest test)
 target_link_libraries(test_binary_inversion PRIVATE binary_inversion)
 
 doctest_discover_tests(test_binary_inversion)
+
+add_executable(mul_karatsuba_bench test/test_mul_karatsuba_bench.c)
+target_link_libraries(mul_karatsuba_bench PRIVATE binary_inversion libcpucycles)
+
+add_executable(mul_karatsuba_bench2 test/test_mul_karatsuba_bench2.c)
+target_link_libraries(mul_karatsuba_bench2 PRIVATE binary_inversion libcpucycles)
+
+add_executable(poly_mod_bench test/test_poly_mod_bench.c)
+target_link_libraries(poly_mod_bench PRIVATE binary_inversion libcpucycles)
+
+add_executable(poly_bench test/test_poly_bench.c)
+target_link_libraries(poly_bench PRIVATE binary_inversion libcpucycles)
