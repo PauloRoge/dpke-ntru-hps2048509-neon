@@ -24,6 +24,8 @@ void mul_karatsuba_512x512_to_1024(const poly64_t a[8], const poly64_t b[8], pol
 
 void mul_karatsuba_64Nx64N_to_128N(const poly64_t *a, const poly64_t *b, poly128_t *c, size_t N);
 
+void mul_karatsuba_256x256_to_512_unfolded(const poly64_t a[4], const poly64_t b[4], poly128_t c[4]);
+
 #ifdef __cplusplus
 }
 #endif

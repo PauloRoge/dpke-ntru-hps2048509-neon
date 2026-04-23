@@ -341,3 +341,7 @@ TEST_CASE("multiplication karatsuba 256x256->512 works") {
 TEST_CASE("multiplication karatsuba 512x512->1024 works") {
     test_multiplication_karatsuba_64Nx64N_to_128N(test_cases_512, mul_karatsuba_512x512_to_1024);
 }
+
+TEST_CASE("multiplication karatsuba unfolded 256x256->512 works") {
+    test_multiplication_karatsuba_64Nx64N_to_128N(test_cases_256, mul_karatsuba_256x256_to_512_unfolded);
+}

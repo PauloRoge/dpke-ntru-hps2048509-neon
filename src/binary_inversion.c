@@ -4,8 +4,21 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Caso base
-void binary_polynomial_addition(const poly64_t *a, const poly64_t *b, poly64_t *c, size_t N);
+// XOR entre poly64_t
+void binary_polynomial_addition(const poly64_t *a, const poly64_t *b, poly64_t *c, size_t N) {
+    for (size_t i = 0; i < N; i++) {
+        c[i] = a[i] ^ b[i];
+    }
+}
+
+// XOR entre uint64_t
+static void binary_polynomial_addition_u64(
+    const uint64_t *a, const uint64_t *b, uint64_t *c, size_t N
+) {
+    for (size_t i = 0; i < N; i++) {
+        c[i] = a[i] ^ b[i];
+    }
+}
 
 // Funções recursivas escaláveis para multiplicação polinomial binaria
 void binary_polynomial_multiplication(const poly64_t *a, const poly64_t *b, poly128_t *c, size_t N) {
@@ -101,9 +114,9 @@ void mul_karatsuba_64Nx64N_to_128N(const poly64_t *a, const poly64_t *b, poly128
         out[i] = 0;
     }
 
-    binary_polynomial_addition(out, z0w, out, 2 * N / 2);
-    binary_polynomial_addition(&out[N / 2], mid, &out[N / 2], 2 * N / 2);
-    binary_polynomial_addition(&out[N], z2w, &out[N], 2 * N);
+    binary_polynomial_addition_u64(&out[0],     z0w, &out[0],     N);
+    binary_polynomial_addition_u64(&out[N / 2], mid, &out[N / 2], N);
+    binary_polynomial_addition_u64(&out[N],     z2w, &out[N],     N);
 
     // empacota em poly128_t c[N]
     for (size_t i = 0; i < N; i++) {
@@ -191,11 +204,61 @@ void mul_karatsuba_512x512_to_1024(const poly64_t a[8], const poly64_t b[8], pol
     mul_karatsuba_64Nx64N_to_128N(a, b, c, 8);
 }
 
-// função que realiza XOR
-void binary_polynomial_addition(const poly64_t *a, const poly64_t *b, poly64_t *c, size_t N) {
-    for (size_t i = 0; i < N; i++) {
-        c[i] = a[i] ^ b[i];
-    }
+static inline uint64x2_t mul64(poly64_t a, poly64_t b) {
+    return vreinterpretq_u64_p128(vmull_p64(a, b));
+}
+
+void mul_karatsuba_256x256_to_512_unfolded(const poly64_t a[4], const poly64_t b[4], poly128_t c[4]) {
+    uint64x2_t h0, h1, h2, h3, h4, h5, h6;
+
+    h0 = mul64(a[0], b[0]);
+
+    h1 = mul64(a[0] ^ a[1], b[0] ^ b[1]) ^ mul64(a[0], b[0]) ^ mul64(a[1], b[1]);
+
+    h2 = mul64(a[1], b[1]) ^ mul64(a[0], b[0]) ^ mul64(a[0] ^ a[2], b[0] ^ b[2]) ^ mul64(a[2], b[2]);
+
+    h3 = (mul64(a[0] ^ a[1], b[0] ^ b[1]) ^ mul64(a[0], b[0]) ^ mul64(a[1], b[1]))
+        ^ (mul64(a[0] ^ a[1] ^ a[2] ^ a[3], b[0] ^ b[1] ^ b[2] ^ b[3])
+             ^  mul64(a[0] ^ a[2], b[0] ^ b[2]) ^ mul64(a[1] ^ a[3], b[1] ^ b[3]))
+        ^ (mul64(a[2] ^ a[3], b[2] ^ b[3]) ^mul64(a[2], b[2]) ^ mul64(a[3], b[3]));
+
+    h4 = mul64(a[1], b[1]) ^ mul64(a[1] ^ a[3], b[1] ^ b[3]) ^ mul64(a[3], b[3]) ^ mul64(a[2], b[2]);
+
+    h5 = mul64(a[2] ^ a[3], b[2] ^ b[3]) ^ mul64(a[2], b[2]) ^ mul64(a[3], b[3]);
+
+    h6 = mul64(a[3], b[3]);
+
+    // recombinação
+    uint64_t r0 = vgetq_lane_u64(h0, 0);
+    uint64_t r1 = vgetq_lane_u64(h0, 1) ^ vgetq_lane_u64(h1, 0);
+    uint64_t r2 = vgetq_lane_u64(h1, 1) ^ vgetq_lane_u64(h2, 0);
+    uint64_t r3 = vgetq_lane_u64(h2, 1) ^ vgetq_lane_u64(h3, 0);
+    uint64_t r4 = vgetq_lane_u64(h3, 1) ^ vgetq_lane_u64(h4, 0);
+    uint64_t r5 = vgetq_lane_u64(h4, 1) ^ vgetq_lane_u64(h5, 0);
+    uint64_t r6 = vgetq_lane_u64(h5, 1) ^ vgetq_lane_u64(h6, 0);
+    uint64_t r7 = vgetq_lane_u64(h6, 1);
+
+    uint64x2_t C0 = vdupq_n_u64(0);
+    uint64x2_t C1 = vdupq_n_u64(0);
+    uint64x2_t C2 = vdupq_n_u64(0);
+    uint64x2_t C3 = vdupq_n_u64(0);
+
+    C0 = vsetq_lane_u64(r0, C0, 0);
+    C0 = vsetq_lane_u64(r1, C0, 1);
+
+    C1 = vsetq_lane_u64(r2, C1, 0);
+    C1 = vsetq_lane_u64(r3, C1, 1);
+
+    C2 = vsetq_lane_u64(r4, C2, 0);
+    C2 = vsetq_lane_u64(r5, C2, 1);
+
+    C3 = vsetq_lane_u64(r6, C3, 0);
+    C3 = vsetq_lane_u64(r7, C3, 1);
+
+    c[0] = vreinterpretq_p128_u64(C0);
+    c[1] = vreinterpretq_p128_u64(C1);
+    c[2] = vreinterpretq_p128_u64(C2);
+    c[3] = vreinterpretq_p128_u64(C3);
 }
 
 // void mul_karatsuba256x256(poly64_t a[4], poly64_t b[4], poly128_t c[4]) {
