@@ -6,7 +6,7 @@
 #include "doctest.h"
 
 extern "C" {
-#include "binary_inversion.h"
+#include "binary_poly.h"
 #include "poly_mod.h"
 }
 
@@ -65,7 +65,7 @@ static void set_coeff(uint64_t a[], size_t n, uint8_t v) {
 }
 
 template <size_t N>
-static void reference_reduce_mod_x509(const std::array<uint64_t, 2 * N> &c, std::array<uint64_t, 8> &h) {
+static void reference_reduce_mod_x509m1(const std::array<uint64_t, 2 * N> &c, std::array<uint64_t, 8> &h) {
     h.fill(0);
 
     for (size_t i = 0; i < 128 * N; i++) {
@@ -115,7 +115,7 @@ static void test_multiplication_64Nx64N_to_128N(
 }
 
 template <size_t cases>
-static void test_multiplication_mod_x509(const binary_polynomial_multiplication_test_case_t<8> (&test_cases)[cases]) {
+static void test_multiplication_reduce_mod_x509m1(const binary_polynomial_multiplication_test_case_t<8> (&test_cases)[cases]) {
     const uint64_t mask61 = (UINT64_C(1) << 61) - 1;
 
     for (const auto &tc : test_cases) {
@@ -134,7 +134,7 @@ static void test_multiplication_mod_x509(const binary_polynomial_multiplication_
         }
 
         std::array<uint64_t, 8> got;
-        binary_polynomial_mul_mod509(a, b, got.data());
+        binary_polynomial_mul_reduce_mod_x509m1(a, b, got.data());
 
         uint8_t a_ref[64 * 8];
         uint8_t b_ref[64 * 8];
@@ -148,7 +148,7 @@ static void test_multiplication_mod_x509(const binary_polynomial_multiplication_
         uint8_array_to_uint64_2N<8>(c_ref, product_ref);
 
         std::array<uint64_t, 8> expected;
-        reference_reduce_mod_x509<8>(product_ref, expected);
+        reference_reduce_mod_x509m1<8>(product_ref, expected);
 
         REQUIRE(got == expected);
     }
@@ -327,7 +327,7 @@ TEST_CASE("binary polynomial multiplication 512x512->1024 works") {
 }
 
 TEST_CASE("binary polynomial multiplication mod x^509 - 1 works") {
-    test_multiplication_mod_x509(test_cases_512);
+    test_multiplication_reduce_mod_x509m1(test_cases_512);
 }
 
 TEST_CASE("multiplication karatsuba 128x128->256 works") {
@@ -344,4 +344,8 @@ TEST_CASE("multiplication karatsuba 512x512->1024 works") {
 
 TEST_CASE("multiplication karatsuba unfolded 256x256->512 works") {
     test_multiplication_karatsuba_64Nx64N_to_128N(test_cases_256, mul_karatsuba_256x256_to_512_unfolded);
+}
+
+TEST_CASE("multiplication karatsuba unfolded 512x512->1024 works") {
+    test_multiplication_karatsuba_64Nx64N_to_128N(test_cases_512, mul_karatsuba_512x512_to_1024_unfolded);
 }

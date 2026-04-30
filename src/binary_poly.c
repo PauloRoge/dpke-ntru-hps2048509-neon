@@ -1,4 +1,4 @@
-#include "binary_inversion.h"
+#include "binary_poly.h"
 
 #include <arm_neon.h>
 #include <stddef.h>
@@ -208,27 +208,103 @@ static inline uint64x2_t mul64(poly64_t a, poly64_t b) {
     return vreinterpretq_u64_p128(vmull_p64(a, b));
 }
 
+// void mul_karatsuba_256x256_to_512_unfolded(const poly64_t a[4], const poly64_t b[4], poly128_t c[4]) {
+//     uint64x2_t h0, h1, h2, h3, h4, h5, h6;
+
+//     h0 = mul64(a[0], b[0]);
+
+//     h1 = mul64(a[0] ^ a[1], b[0] ^ b[1]) ^ mul64(a[0], b[0]) ^ mul64(a[1], b[1]);
+
+//     h2 = mul64(a[1], b[1]) ^ mul64(a[0], b[0]) ^ mul64(a[0] ^ a[2], b[0] ^ b[2]) ^ mul64(a[2], b[2]);
+
+//     h3 = (mul64(a[0] ^ a[1], b[0] ^ b[1]) ^ mul64(a[0], b[0]) ^ mul64(a[1], b[1]))
+//         ^ (mul64(a[0] ^ a[1] ^ a[2] ^ a[3], b[0] ^ b[1] ^ b[2] ^ b[3])
+//              ^  mul64(a[0] ^ a[2], b[0] ^ b[2]) ^ mul64(a[1] ^ a[3], b[1] ^ b[3]))
+//         ^ (mul64(a[2] ^ a[3], b[2] ^ b[3]) ^mul64(a[2], b[2]) ^ mul64(a[3], b[3]));
+
+//     h4 = mul64(a[1], b[1]) ^ mul64(a[1] ^ a[3], b[1] ^ b[3]) ^ mul64(a[3], b[3]) ^ mul64(a[2], b[2]);
+
+//     h5 = mul64(a[2] ^ a[3], b[2] ^ b[3]) ^ mul64(a[2], b[2]) ^ mul64(a[3], b[3]);
+
+//     h6 = mul64(a[3], b[3]);
+
+//     // recombinação
+//     uint64_t r0 = vgetq_lane_u64(h0, 0);
+//     uint64_t r1 = vgetq_lane_u64(h0, 1) ^ vgetq_lane_u64(h1, 0);
+//     uint64_t r2 = vgetq_lane_u64(h1, 1) ^ vgetq_lane_u64(h2, 0);
+//     uint64_t r3 = vgetq_lane_u64(h2, 1) ^ vgetq_lane_u64(h3, 0);
+//     uint64_t r4 = vgetq_lane_u64(h3, 1) ^ vgetq_lane_u64(h4, 0);
+//     uint64_t r5 = vgetq_lane_u64(h4, 1) ^ vgetq_lane_u64(h5, 0);
+//     uint64_t r6 = vgetq_lane_u64(h5, 1) ^ vgetq_lane_u64(h6, 0);
+//     uint64_t r7 = vgetq_lane_u64(h6, 1);
+
+//     uint64x2_t C0 = vdupq_n_u64(0);
+//     uint64x2_t C1 = vdupq_n_u64(0);
+//     uint64x2_t C2 = vdupq_n_u64(0);
+//     uint64x2_t C3 = vdupq_n_u64(0);
+
+//     C0 = vsetq_lane_u64(r0, C0, 0);
+//     C0 = vsetq_lane_u64(r1, C0, 1);
+
+//     C1 = vsetq_lane_u64(r2, C1, 0);
+//     C1 = vsetq_lane_u64(r3, C1, 1);
+
+//     C2 = vsetq_lane_u64(r4, C2, 0);
+//     C2 = vsetq_lane_u64(r5, C2, 1);
+
+//     C3 = vsetq_lane_u64(r6, C3, 0);
+//     C3 = vsetq_lane_u64(r7, C3, 1);
+
+//     c[0] = vreinterpretq_p128_u64(C0);
+//     c[1] = vreinterpretq_p128_u64(C1);
+//     c[2] = vreinterpretq_p128_u64(C2);
+//     c[3] = vreinterpretq_p128_u64(C3);
+// }
+
 void mul_karatsuba_256x256_to_512_unfolded(const poly64_t a[4], const poly64_t b[4], poly128_t c[4]) {
-    uint64x2_t h0, h1, h2, h3, h4, h5, h6;
 
-    h0 = mul64(a[0], b[0]);
+    uint64x2_t m0 = mul64(a[0], b[0]);
+    uint64x2_t m1 = mul64(a[1], b[1]);
+    uint64x2_t m2 = mul64(a[0] ^ a[1], b[0] ^ b[1]);
 
-    h1 = mul64(a[0] ^ a[1], b[0] ^ b[1]) ^ mul64(a[0], b[0]) ^ mul64(a[1], b[1]);
+    uint64x2_t m3 = mul64(a[2], b[2]);
+    uint64x2_t m4 = mul64(a[3], b[3]);
+    uint64x2_t m5 = mul64(a[2] ^ a[3], b[2] ^ b[3]);
 
-    h2 = mul64(a[1], b[1]) ^ mul64(a[0], b[0]) ^ mul64(a[0] ^ a[2], b[0] ^ b[2]) ^ mul64(a[2], b[2]);
+    uint64x2_t m6 = mul64(a[0] ^ a[2], b[0] ^ b[2]);
+    uint64x2_t m7 = mul64(a[1] ^ a[3], b[1] ^ b[3]);
+    uint64x2_t m8 = mul64(
+        a[0] ^ a[1] ^ a[2] ^ a[3],
+        b[0] ^ b[1] ^ b[2] ^ b[3]
+    );
 
-    h3 = (mul64(a[0] ^ a[1], b[0] ^ b[1]) ^ mul64(a[0], b[0]) ^ mul64(a[1], b[1]))
-        ^ (mul64(a[0] ^ a[1] ^ a[2] ^ a[3], b[0] ^ b[1] ^ b[2] ^ b[3])
-             ^  mul64(a[0] ^ a[2], b[0] ^ b[2]) ^ mul64(a[1] ^ a[3], b[1] ^ b[3]))
-        ^ (mul64(a[2] ^ a[3], b[2] ^ b[3]) ^mul64(a[2], b[2]) ^ mul64(a[3], b[3]));
+    /*
+     * h0 = m0
+     * h1 = m2 + m0 + m1
+     * h2 = m1 + m0 + m6 + m3
+     * h3 = h1 + (m8 + m6 + m7) + h5
+     * h4 = m1 + m7 + m4 + m3
+     * h5 = m5 + m3 + m4
+     * h6 = m4
+     */
 
-    h4 = mul64(a[1], b[1]) ^ mul64(a[1] ^ a[3], b[1] ^ b[3]) ^ mul64(a[3], b[3]) ^ mul64(a[2], b[2]);
+    uint64x2_t h0 = m0;
 
-    h5 = mul64(a[2] ^ a[3], b[2] ^ b[3]) ^ mul64(a[2], b[2]) ^ mul64(a[3], b[3]);
+    uint64x2_t h1 = m2 ^ m0 ^ m1;
 
-    h6 = mul64(a[3], b[3]);
+    uint64x2_t h2 = m1 ^ m0 ^ m6 ^ m3;
 
-    // recombinação
+    uint64x2_t h5 = m5 ^ m3 ^ m4;
+
+    uint64x2_t mid = m8 ^ m6 ^ m7;
+
+    uint64x2_t h3 = h1 ^ mid ^ h5;
+
+    uint64x2_t h4 = m1 ^ m7 ^ m4 ^ m3;
+
+    uint64x2_t h6 = m4;
+
+    //recombina
     uint64_t r0 = vgetq_lane_u64(h0, 0);
     uint64_t r1 = vgetq_lane_u64(h0, 1) ^ vgetq_lane_u64(h1, 0);
     uint64_t r2 = vgetq_lane_u64(h1, 1) ^ vgetq_lane_u64(h2, 0);
@@ -259,6 +335,82 @@ void mul_karatsuba_256x256_to_512_unfolded(const poly64_t a[4], const poly64_t b
     c[1] = vreinterpretq_p128_u64(C1);
     c[2] = vreinterpretq_p128_u64(C2);
     c[3] = vreinterpretq_p128_u64(C3);
+}
+
+void mul_karatsuba_512x512_to_1024_unfolded(const poly64_t a[8], const poly64_t b[8], poly128_t c[8]) {
+    // a = a1 * x^256 + a0
+    // b = b1 * x^256 + b0
+
+    poly64_t a0[4] = {a[0], a[1], a[2], a[3]};
+    poly64_t a1[4] = {a[4], a[5], a[6], a[7]};
+
+    poly64_t b0[4] = {b[0], b[1], b[2], b[3]};
+    poly64_t b1[4] = {b[4], b[5], b[6], b[7]};
+
+    poly128_t z0[4];
+    poly128_t z1[4];
+    poly128_t z2[4];
+
+    // z0 = a0 * b0
+    mul_karatsuba_256x256_to_512_unfolded(a0, b0, z0);
+
+    // z2 = a1 * b1
+    mul_karatsuba_256x256_to_512_unfolded(a1, b1, z2);
+
+    // z1 = (a0 ^ a1) * (b0 ^ b1)
+    poly64_t a_xor[4];
+    poly64_t b_xor[4];
+
+    for (size_t i = 0; i < 4; i++) {
+        a_xor[i] = a0[i] ^ a1[i];
+        b_xor[i] = b0[i] ^ b1[i];
+    }
+
+    mul_karatsuba_256x256_to_512_unfolded(a_xor, b_xor, z1);
+
+    uint64_t z0w[8];
+    uint64_t z1w[8];
+    uint64_t z2w[8];
+
+    for (size_t i = 0; i < 4; i++) {
+        uint64x2_t v0 = vreinterpretq_u64_p128(z0[i]);
+        uint64x2_t v1 = vreinterpretq_u64_p128(z1[i]);
+        uint64x2_t v2 = vreinterpretq_u64_p128(z2[i]);
+
+        z0w[2 * i]     = vgetq_lane_u64(v0, 0);
+        z0w[2 * i + 1] = vgetq_lane_u64(v0, 1);
+
+        z1w[2 * i]     = vgetq_lane_u64(v1, 0);
+        z1w[2 * i + 1] = vgetq_lane_u64(v1, 1);
+
+        z2w[2 * i]     = vgetq_lane_u64(v2, 0);
+        z2w[2 * i + 1] = vgetq_lane_u64(v2, 1);
+    }
+
+    uint64_t mid[8];
+
+    for (size_t i = 0; i < 8; i++) {
+        mid[i] = z1w[i] ^ z0w[i] ^ z2w[i];
+    }
+
+    uint64_t out[16] = {0};
+
+    // resultado = z0 ^ (mid << 256) ^ (z2 << 512)
+    for (size_t i = 0; i < 8; i++) {
+        out[i]     ^= z0w[i];
+        out[i + 4] ^= mid[i];
+        out[i + 8] ^= z2w[i];
+    }
+
+    // empacota 16 words de 64 bits em 8 poly128_t
+    for (size_t i = 0; i < 8; i++) {
+        uint64x2_t v = vdupq_n_u64(0);
+
+        v = vsetq_lane_u64(out[2 * i],     v, 0);
+        v = vsetq_lane_u64(out[2 * i + 1], v, 1);
+
+        c[i] = vreinterpretq_p128_u64(v);
+    }
 }
 
 // void mul_karatsuba256x256(poly64_t a[4], poly64_t b[4], poly128_t c[4]) {

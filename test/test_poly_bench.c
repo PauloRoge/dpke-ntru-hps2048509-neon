@@ -1,5 +1,5 @@
 #include "benchmark.h"
-#include "binary_inversion.h"
+#include "binary_poly.h"
 
 int main(void) {
     size_t N = 4;

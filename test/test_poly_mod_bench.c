@@ -1,5 +1,5 @@
 #include "benchmark.h"
-#include "binary_inversion.h"
+#include "binary_poly.h"
 
 int main(void) {
     poly64_t a[4] = { 0xdeadbeef, 0xcafebabe, 0x12345678, 0xabcdef01 };

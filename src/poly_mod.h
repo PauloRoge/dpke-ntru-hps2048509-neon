@@ -8,9 +8,7 @@
 extern "C" {
 #endif
 
-void reduce_mod509(const uint64_t x[16], uint64_t h[8]);
-
-void binary_polynomial_mul_mod509(poly64_t a[8], poly64_t b[8], uint64_t h[8]);
+void binary_polynomial_mul_reduce_mod_x509m1(poly64_t a[8], poly64_t b[8], uint64_t h[8]);
 
 #ifdef __cplusplus
 }
