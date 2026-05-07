@@ -8,6 +8,7 @@
 extern "C" {
 #include "binary_poly.h"
 #include "poly_mod.h"
+#include "poly_inverse.h"
 }
 
 template <size_t N>
@@ -134,7 +135,8 @@ static void test_multiplication_reduce_mod_x509m1(const binary_polynomial_multip
         }
 
         std::array<uint64_t, 8> got;
-        binary_polynomial_mul_reduce_mod_x509m1(a, b, got.data());
+        // binary_polynomial_mul_reduce_mod_x509m1(a, b, got.data());
+        mul_karatsuba_512x512_to_1024_mod_x509m1(a, b, got.data());
 
         uint8_t a_ref[64 * 8];
         uint8_t b_ref[64 * 8];
@@ -187,6 +189,26 @@ static void test_multiplication_karatsuba_64Nx64N_to_128N(
         REQUIRE(got == expected);
         REQUIRE(expected == tc.r);
     }
+}
+
+static void r2_mul_for_test(
+    const std::array<uint64_t, 8> &a,
+    const std::array<uint64_t, 8> &b,
+    std::array<uint64_t, 8> &out
+) {
+    const uint64_t mask61 = (UINT64_C(1) << 61) - 1;
+
+    poly64_t ap[8];
+    poly64_t bp[8];
+
+    for (size_t i = 0; i < 8; i++) {
+        ap[i] = vget_lane_p64(vdup_n_p64(a[i]), 0);
+        bp[i] = vget_lane_p64(vdup_n_p64(b[i]), 0);
+    }
+
+    mul_karatsuba_512x512_to_1024_mod_x509m1(ap, bp, out.data());
+
+    out[7] &= mask61;
 }
 
 const binary_polynomial_multiplication_test_case_t<1> test_cases_64[] = {
@@ -326,10 +348,6 @@ TEST_CASE("binary polynomial multiplication 512x512->1024 works") {
     test_multiplication_64Nx64N_to_128N(test_cases_512, binary_polynomial_multiplication_512x512_to_1024);
 }
 
-TEST_CASE("binary polynomial multiplication mod x^509 - 1 works") {
-    test_multiplication_reduce_mod_x509m1(test_cases_512);
-}
-
 TEST_CASE("multiplication karatsuba 128x128->256 works") {
     test_multiplication_karatsuba_64Nx64N_to_128N(test_cases_128, mul_karatsuba_128x128_to_256);
 }
@@ -348,4 +366,28 @@ TEST_CASE("multiplication karatsuba unfolded 256x256->512 works") {
 
 TEST_CASE("multiplication karatsuba unfolded 512x512->1024 works") {
     test_multiplication_karatsuba_64Nx64N_to_128N(test_cases_512, mul_karatsuba_512x512_to_1024_unfolded);
+}
+
+// TEST_CASE("binary polynomial multiplication mod x^509 - 1 works") {
+//     test_multiplication_reduce_mod_x509m1(test_cases_512);
+// }
+
+TEST_CASE("binary polynomial multiplication karatsuba recursive(512) mod x^509 - 1 works") {
+    test_multiplication_reduce_mod_x509m1(test_cases_512);
+}
+
+TEST_CASE("R2 inverse h * h^{-1} = 1 mod x^509 - 1") {
+    std::array<uint64_t, 8> h = {0};
+    std::array<uint64_t, 8> hinv = {0};
+    std::array<uint64_t, 8> got = {0};
+    std::array<uint64_t, 8> one = {0};
+
+    h[0] = UINT64_C(1) << 1; // h = x
+    one[0] = 1;              // 1
+
+    R2_inverse(h.data(), hinv.data());
+
+    r2_mul_for_test(h, hinv, got);
+
+    REQUIRE(got == one);
 }

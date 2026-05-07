@@ -14,6 +14,7 @@ include(cmake/libcpucycles.cmake)
 add_library(binary_poly STATIC
     src/binary_poly.c
     src/poly_mod.c
+    src/poly_inverse.c
 )
 target_include_directories(binary_poly PUBLIC src)
 
