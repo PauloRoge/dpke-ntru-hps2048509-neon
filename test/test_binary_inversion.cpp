@@ -376,18 +376,37 @@ TEST_CASE("binary polynomial multiplication karatsuba recursive(512) mod x^509 -
     test_multiplication_reduce_mod_x509m1(test_cases_512);
 }
 
-TEST_CASE("R2 inverse h * h^{-1} = 1 mod x^509 - 1") {
-    std::array<uint64_t, 8> h = {0};
+// TEST_CASE("R2 inverse h * h^{-1} = 1 mod x^509 - 1") {
+//     std::array<uint64_t, 8> h = {0};
+//     std::array<uint64_t, 8> hinv = {0};
+//     std::array<uint64_t, 8> got = {0};
+//     std::array<uint64_t, 8> one = {0};
+
+//     h[0] = UINT64_C(1) << 1; // h = x
+//     one[0] = 1;              // 1
+
+//     R2_inverse(h.data(), hinv.data());
+
+//     r2_mul_for_test(h, hinv, got);
+
+//     REQUIRE(got == one);
+// }
+
+TEST_CASE("R2 inverse") {
+    const uint64_t mask61 = (UINT64_C(1) << 61) - 1;
+    std::array<uint64_t, 8> h;
     std::array<uint64_t, 8> hinv = {0};
     std::array<uint64_t, 8> got = {0};
-    std::array<uint64_t, 8> one = {0};
+    const std::array<uint64_t, 8> one = {1};
 
-    h[0] = UINT64_C(1) << 1; // h = x
-    one[0] = 1;              // 1
+    h = {UINT64_C(1) << 1};
 
-    R2_inverse(h.data(), hinv.data());
-
+    h = {UINT64_C(0x123456789abcdef0), UINT64_C(0x0fedcba987654321), UINT64_C(0x55aa55aa55aa55aa),
+             UINT64_C(0xaa55aa55aa55aa55), UINT64_C(0x0123456789abcdef), UINT64_C(0xfedcba9876543210),
+             UINT64_C(0x0f0f0f0f0f0f0f0f), UINT64_C(0xf0f0f0f0f0f0f0f0)};
+    
+    h[7] &= mask61;
+    r2_inverse(h.data(), hinv.data());
     r2_mul_for_test(h, hinv, got);
-
     REQUIRE(got == one);
 }
