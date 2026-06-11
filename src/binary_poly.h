@@ -30,6 +30,10 @@ void mul_karatsuba_256x256_to_512_unfolded(const poly64_t a[4], const poly64_t b
 
 void mul_karatsuba_512x512_to_1024_unfolded(const poly64_t a[8], const poly64_t b[8], poly128_t c[8]);
 
+void binary_polynomial_square(const poly64_t *a, poly128_t *c, size_t N);
+
+void binary_polynomial_square_64_to_128(const poly64_t *a, poly128_t *c);
+
 #ifdef __cplusplus
 }
 #endif

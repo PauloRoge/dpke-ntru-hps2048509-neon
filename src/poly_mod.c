@@ -5,7 +5,7 @@
 #include "poly_mod.h"
 #include "binary_poly.h"
 
-    void reduce_mod_x509m1(const uint64_t c[16], uint64_t h[8]) {
+void reduce_mod_x509m1(const uint64_t c[16], uint64_t h[8]) {
         uint64_t hi[8];
 
         for (size_t i = 0; i < 7; i++)
@@ -17,7 +17,7 @@
             h[i] = c[i] ^ hi[i];
 
         h[7] &= (UINT64_C(1) << 61) - 1;
-    }
+}
 
 void binary_polynomial_mul_reduce_mod_x509m1(poly64_t a[8], poly64_t b[8], uint64_t h[8]) {
     poly128_t c[8];
@@ -48,3 +48,4 @@ void mul_karatsuba_512x512_to_1024_mod_x509m1(poly64_t a[8], poly64_t b[8], uint
 
     reduce_mod_x509m1(x, h);
 }
+

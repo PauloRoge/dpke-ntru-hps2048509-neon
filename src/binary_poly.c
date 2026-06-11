@@ -144,6 +144,16 @@ void binary_polynomial_multiplication_512x512_to_1024(const poly64_t a[8], const
     binary_polynomial_multiplication(a, b, c, 8);
 }
 
+void binary_polynomial_square_64_to_128(const poly64_t *a, poly128_t *c) {
+    *c = vmull_p64(*a, *a);
+}
+
+void binary_polynomial_square(const poly64_t *a, poly128_t *c, size_t N) {
+    for (size_t i = 0; i < N; i++) {
+        binary_polynomial_square_64_to_128(&a[i], &c[i]);
+    }
+}
+
 void mul_karatsuba_128x128_to_256(const poly64_t a[2], const poly64_t b[2], poly128_t c[2]) {
     poly128_t z0, z1, z2;
 

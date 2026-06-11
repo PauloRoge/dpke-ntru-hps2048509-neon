@@ -13,6 +13,35 @@ static inline uint8_t get_coeff(const uint64_t a[], size_t n) {
     return (uint8_t)((a[n / 64] >> (n % 64)) & 1ULL);
 }
 
+void frobenius_square_vmull(const uint64_t a[8], uint64_t out[8]) {
+    poly64_t ap[8];
+    poly128_t sq[8];
+    uint64_t expanded[16];
+
+    for (size_t i = 0; i < 16; i++) {
+        expanded[i] = 0;
+    }
+
+    for (size_t i = 0; i < R2_NWORDS; i++) {
+        ap[i] = (poly64_t)a[i];
+    }
+
+    ap[7] &= (poly64_t)MASK;
+
+    binary_polynomial_square(ap, sq, R2_NWORDS);
+
+    for (size_t i = 0; i < R2_NWORDS; i++) {
+        uint64x2_t v = vreinterpretq_u64_p128(sq[i]);
+
+        expanded[2 * i]     = vgetq_lane_u64(v, 0);
+        expanded[2 * i + 1] = vgetq_lane_u64(v, 1);
+    }
+
+    reduce_mod_x509m1(expanded, out);
+
+    out[7] &= MASK;
+}
+
 static void r2_mul(const uint64_t a[8], const uint64_t b[8], uint64_t out[8]) {
     poly64_t ap[8];
     poly64_t bp[8];
@@ -60,7 +89,7 @@ static void frobenius_square(const uint64_t a[8], uint64_t out[8]) {
 }
 
 // pior caso onde todos bits são 1; [(2^508) - 1]
-void r2_inverse_ltr_frobenius(const uint64_t h[8], uint64_t hinv[8]) {
+void r2_inverse(const uint64_t h[8], uint64_t hinv[8]) {
     uint64_t r[8];
     uint64_t aux[8];
 
@@ -71,11 +100,11 @@ void r2_inverse_ltr_frobenius(const uint64_t h[8], uint64_t hinv[8]) {
     r[7] &= MASK;
 
     for (size_t i = 0; i < 506; i++) {
-        frobenius_square(r, aux);
+        frobenius_square_vmull(r, aux);
         r2_mul(aux, h, r);
     }
 
-    frobenius_square(r, hinv);
+    frobenius_square_vmull(r, hinv);
     hinv[7] &= MASK;
 }
 
@@ -104,12 +133,13 @@ static void r2_beta_step(const uint64_t beta_k[8], size_t j, const uint64_t beta
         out[i] = a[i];
     }
     out[7] &= MASK;
+    //
 
     r2_mul(tmp, beta_j, out);
     out[7] &= MASK;
 }
 
-void r2_inverse(const uint64_t h[8], uint64_t hinv[8]) {
+void r2_inverse_itoh(const uint64_t h[8], uint64_t hinv[8]) {
     uint64_t beta1[8];
     uint64_t beta2[8];
     uint64_t beta3[8];
