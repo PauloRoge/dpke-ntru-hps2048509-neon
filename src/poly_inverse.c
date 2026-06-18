@@ -75,12 +75,25 @@ void r2_inverse_ltr(const uint64_t h[8], uint64_t hinv[8]) {
     hinv[7] &= MASK;
 }
 
-static void frobenius_square(const uint64_t a[8], uint64_t out[8]) {
+
+static void build_perm(uint16_t perm[509]) {
+    for (size_t j = 0; j < 509; j++) {
+        if ((j & 1) == 0) { 
+            perm[j] = (uint16_t)(j / 2);
+        }
+        else {
+            perm[j] = (uint16_t)((j + 509) / 2);
+        }
+    }
+}
+
+static void frobenius_square_perm(const uint64_t a[8], uint64_t out[8], const uint16_t perm[509]) {
     memset(out, 0, sizeof(uint64_t) * R2_NWORDS);
 
-    for (size_t i = 0; i < 509; i++) {
+    for (size_t j = 0; j < 509; j++) {
+        size_t i = perm[j];
+
         if (get_coeff(a, i)) {
-            size_t j = (2 * i) % 509;
             out[j / 64] |= 1ULL << (j % 64);
         }
     }
@@ -88,23 +101,55 @@ static void frobenius_square(const uint64_t a[8], uint64_t out[8]) {
     out[7] &= MASK;
 }
 
+// static void frobenius_square(const uint64_t a[8], uint64_t out[8]) {
+//     memset(out, 0, sizeof(uint64_t) * R2_NWORDS);
+
+//     for (size_t i = 0; i < 509; i++) {
+//         if (get_coeff(a, i)) {
+//             size_t j = (2 * i) % 509;
+//             out[j / 64] |= 1ULL << (j % 64);
+//         }
+//     }
+
+//     out[7] &= MASK;
+// }
+
 // pior caso onde todos bits são 1; [(2^508) - 1]
-void r2_inverse(const uint64_t h[8], uint64_t hinv[8]) {
+// void r2_inverse(const uint64_t h[8], uint64_t hinv[8]) {
+//     uint64_t r[8];
+//     uint64_t aux[8];
+
+//     for (size_t i = 0; i < R2_NWORDS; i++) {
+//         r[i] = h[i];
+//     }
+
+//     r[7] &= MASK;
+
+//     for (size_t i = 0; i < 506; i++) {
+//         frobenius_square_vmull(r, aux);
+//         r2_mul(aux, h, r);
+//     }
+
+//     frobenius_square_vmull(r, hinv);
+//     hinv[7] &= MASK;
+// }
+
+void r2_inverse(const uint64_t h[8], uint64_t hinv[8])
+{
     uint64_t r[8];
     uint64_t aux[8];
+    uint16_t square_perm[509];
+    build_perm(square_perm);
 
-    for (size_t i = 0; i < R2_NWORDS; i++) {
-        r[i] = h[i];
-    }
-
+    memcpy(r, h, sizeof(r));
     r[7] &= MASK;
 
     for (size_t i = 0; i < 506; i++) {
-        frobenius_square_vmull(r, aux);
+        frobenius_square_perm(r, aux, square_perm);
         r2_mul(aux, h, r);
     }
 
-    frobenius_square_vmull(r, hinv);
+    frobenius_square_perm(r, hinv, square_perm);
     hinv[7] &= MASK;
 }
 
