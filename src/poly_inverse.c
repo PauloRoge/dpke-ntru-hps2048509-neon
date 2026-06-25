@@ -75,23 +75,28 @@ void r2_inverse_ltr(const uint64_t h[8], uint64_t hinv[8]) {
     hinv[7] &= MASK;
 }
 
+static void build_perm(int nperm, uint16_t p[509]) {
+    for (int j = 0; j < 509; j++) {
+        int idx = j;
 
-static void build_perm(uint16_t perm[509]) {
-    for (size_t j = 0; j < 509; j++) {
-        if ((j & 1) == 0) { 
-            perm[j] = (uint16_t)(j / 2);
+        for (int k = 0; k < nperm; k++) {
+            if ((idx & 1) == 0) {
+                idx = idx / 2;
+            }
+            else {
+                idx = (idx + 509) / 2;
+            }
         }
-        else {
-            perm[j] = (uint16_t)((j + 509) / 2);
-        }
+
+        p[j] = idx;
     }
 }
 
 static void frobenius_square_perm(const uint64_t a[8], uint64_t out[8], const uint16_t perm[509]) {
     memset(out, 0, sizeof(uint64_t) * R2_NWORDS);
 
-    for (size_t j = 0; j < 509; j++) {
-        size_t i = perm[j];
+    for (int j = 0; j < 509; j++) {
+        int i = perm[j];
 
         if (get_coeff(a, i)) {
             out[j / 64] |= 1ULL << (j % 64);
@@ -99,6 +104,70 @@ static void frobenius_square_perm(const uint64_t a[8], uint64_t out[8], const ui
     }
 
     out[7] &= MASK;
+}
+
+static void r2_beta_step(const uint64_t beta_k[8], const uint16_t perm[509], const uint64_t beta_j[8], uint64_t out[8]) {
+    uint64_t a[8];
+    frobenius_square_perm(beta_k, a, perm);
+
+    r2_mul(a, beta_j, out);
+    out[7] &= MASK;
+}
+
+void r2_inverse(const uint64_t h[8], uint64_t hinv[8]) {
+    uint16_t perm1[509];
+    uint16_t perm3[509];
+    uint16_t perm6[509];
+    uint16_t perm15[509];
+    uint16_t perm30[509];
+    uint16_t perm63[509];
+    uint16_t perm126[509];
+    uint16_t perm252[509];
+
+    uint64_t beta1[8];
+    uint64_t beta2[8];
+    uint64_t beta3[8];
+    uint64_t beta6[8];
+    uint64_t beta12[8];
+    uint64_t beta15[8];
+    uint64_t beta30[8];
+    uint64_t beta60[8];
+    uint64_t beta63[8];
+    uint64_t beta126[8];
+    uint64_t beta252[8];
+    uint64_t beta504[8];
+    uint64_t beta507[8];
+
+    build_perm(1, perm1);
+    build_perm(3, perm3);
+    build_perm(6, perm6);
+    build_perm(15, perm15);
+    build_perm(30, perm30);
+    build_perm(63, perm63);
+    build_perm(126, perm126);
+    build_perm(252, perm252);
+
+    for (int i = 0; i < R2_NWORDS; i++) {
+        beta1[i] = h[i];
+    }
+
+    beta1[7] &= MASK;
+
+    r2_beta_step(beta1,   perm1,   beta1,   beta2);
+    r2_beta_step(beta2,   perm1,   beta1,   beta3);
+    r2_beta_step(beta3,   perm3,   beta3,   beta6);
+    r2_beta_step(beta6,   perm6,   beta6,   beta12);
+    r2_beta_step(beta12,  perm3,   beta3,   beta15);
+    r2_beta_step(beta15,  perm15,  beta15,  beta30);
+    r2_beta_step(beta30,  perm30,  beta30,  beta60);
+    r2_beta_step(beta60,  perm3,   beta3,   beta63);
+    r2_beta_step(beta63,  perm63,  beta63,  beta126);
+    r2_beta_step(beta126, perm126, beta126, beta252);
+    r2_beta_step(beta252, perm252, beta252, beta504);
+    r2_beta_step(beta504, perm3,   beta3,   beta507);
+
+    frobenius_square_perm(beta507, hinv, perm1);
+    hinv[7] &= MASK;
 }
 
 // static void frobenius_square(const uint64_t a[8], uint64_t out[8]) {
@@ -134,95 +203,122 @@ static void frobenius_square_perm(const uint64_t a[8], uint64_t out[8], const ui
 //     hinv[7] &= MASK;
 // }
 
-void r2_inverse(const uint64_t h[8], uint64_t hinv[8])
-{
-    uint64_t r[8];
-    uint64_t aux[8];
-    uint16_t square_perm[509];
-    build_perm(square_perm);
 
-    memcpy(r, h, sizeof(r));
-    r[7] &= MASK;
 
-    for (size_t i = 0; i < 506; i++) {
-        frobenius_square_perm(r, aux, square_perm);
-        r2_mul(aux, h, r);
-    }
+// static void build_perm(uint16_t perm[509]) {
+//     for (size_t j = 0; j < 509; j++) {
+//         if ((j & 1) == 0) { 
+//             perm[j] = (uint16_t)(j / 2);
+//         }
+//         else {
+//             perm[j] = (uint16_t)((j + 509) / 2);
+//         }
+//     }
+// }
 
-    frobenius_square_perm(r, hinv, square_perm);
-    hinv[7] &= MASK;
-}
+// static void frobenius_square_perm(const uint64_t a[8], uint64_t out[8], const uint16_t perm[509]) {
+//     memset(out, 0, sizeof(uint64_t) * R2_NWORDS);
 
-//beta_{k+j} = beta_k^(2^j) * beta_j
-static void r2_beta_step(const uint64_t beta_k[8], size_t j, const uint64_t beta_j[8], uint64_t out[8]) {
+//     for (size_t j = 0; j < 509; j++) {
+//         size_t i = perm[j];
+
+//         if (get_coeff(a, i)) {
+//             out[j / 64] |= 1ULL << (j % 64);
+//         }
+//     }
+
+//     out[7] &= MASK;
+// }
+
+// void r2_inverse(const uint64_t h[8], uint64_t hinv[8])
+// {
+//     uint64_t r[8];
+//     uint64_t aux[8];
+//     uint16_t square_perm[509];
+//     build_perm(square_perm);
+
+//     memcpy(r, h, sizeof(r));
+//     r[7] &= MASK;
+
+//     for (size_t i = 0; i < 506; i++) {
+//         frobenius_square_perm(r, aux, square_perm);
+//         r2_mul(aux, h, r);
+//     }
+
+//     frobenius_square_perm(r, hinv, square_perm);
+//     hinv[7] &= MASK;
+// }
+
+// //beta_{k+j} = beta_k^(2^j) * beta_j
+// static void r2_beta_step(const uint64_t beta_k[8], size_t j, const uint64_t beta_j[8], uint64_t out[8]) {
     
-    // beta_k^(2^j) pode ser calculado por j iterações de squaring, ou seja, aplicando a função de Frobenius j vezes
-    uint64_t a[8];
-    uint64_t tmp[8];
+//     // beta_k^(2^j) pode ser calculado por j iterações de squaring, ou seja, aplicando a função de Frobenius j vezes
+//     uint64_t a[8];
+//     uint64_t tmp[8];
 
-    for (size_t i = 0; i < R2_NWORDS; i++) {
-        a[i] = beta_k[i];
-    }
-    a[7] &= MASK;
+//     for (size_t i = 0; i < R2_NWORDS; i++) {
+//         a[i] = beta_k[i];
+//     }
+//     a[7] &= MASK;
 
-    for (size_t i = 0; i < j; i++) {
-        r2_mul(a, a, tmp);
+//     for (size_t i = 0; i < j; i++) {
+//         r2_mul(a, a, tmp);
 
-        for (size_t i = 0; i < R2_NWORDS; i++) {
-        a[i] = tmp[i];
-        }
-        a[7] &= MASK;
-    }
+//         for (size_t i = 0; i < R2_NWORDS; i++) {
+//         a[i] = tmp[i];
+//         }
+//         a[7] &= MASK;
+//     }
 
-    for (size_t i = 0; i < R2_NWORDS; i++) {
-        out[i] = a[i];
-    }
-    out[7] &= MASK;
-    //
+//     for (size_t i = 0; i < R2_NWORDS; i++) {
+//         out[i] = a[i];
+//     }
+//     out[7] &= MASK;
+//     //
 
-    r2_mul(tmp, beta_j, out);
-    out[7] &= MASK;
-}
+//     r2_mul(tmp, beta_j, out);
+//     out[7] &= MASK;
+// }
 
-void r2_inverse_itoh(const uint64_t h[8], uint64_t hinv[8]) {
-    uint64_t beta1[8];
-    uint64_t beta2[8];
-    uint64_t beta3[8];
-    uint64_t beta6[8];
-    uint64_t beta12[8];
-    uint64_t beta15[8];
-    uint64_t beta30[8];
-    uint64_t beta60[8];
-    uint64_t beta63[8];
-    uint64_t beta126[8];
-    uint64_t beta252[8];
-    uint64_t beta504[8];
-    uint64_t beta507[8];
+// void r2_inverse_itoh(const uint64_t h[8], uint64_t hinv[8]) {
+//     uint64_t beta1[8];
+//     uint64_t beta2[8];
+//     uint64_t beta3[8];
+//     uint64_t beta6[8];
+//     uint64_t beta12[8];
+//     uint64_t beta15[8];
+//     uint64_t beta30[8];
+//     uint64_t beta60[8];
+//     uint64_t beta63[8];
+//     uint64_t beta126[8];
+//     uint64_t beta252[8];
+//     uint64_t beta504[8];
+//     uint64_t beta507[8];
 
-    // beta_i = h^(2^i - 1)    
-    for (size_t i = 0; i < R2_NWORDS; i++) {
-        beta1[i] = h[i];
-    }
+//     // beta_i = h^(2^i - 1)    
+//     for (size_t i = 0; i < R2_NWORDS; i++) {
+//         beta1[i] = h[i];
+//     }
 
-    beta1[7] &= MASK;
+//     beta1[7] &= MASK;
 
-    // beta2 = beta1^2 * beta1 = h^(2^2 - 1)
-    r2_beta_step(beta1, 1, beta1, beta2);
+//     // beta2 = beta1^2 * beta1 = h^(2^2 - 1)
+//     r2_beta_step(beta1, 1, beta1, beta2);
 
-    // 1, 2, 3, 6, 12, 15, 30, 60, 63, 126, 252, 504, 507
-    r2_beta_step(beta2,   1,   beta1,   beta3); // beta3 = beta2^(2^1) * beta1
-    r2_beta_step(beta3,   3,   beta3,   beta6); // beta6 = beta3^(2^3) * beta3
-    r2_beta_step(beta6,   6,   beta6,   beta12); // beta12 = beta6^(2^6) * beta6
-    r2_beta_step(beta12,  3,   beta3,   beta15); // beta15 = beta12^(2^3) * beta3
-    r2_beta_step(beta15,  15,  beta15,  beta30); // beta30 = beta15^(2^15) * beta15
-    r2_beta_step(beta30,  30,  beta30,  beta60); // beta60 = beta30^(2^30) * beta30
-    r2_beta_step(beta60,  3,   beta3,   beta63); // beta63 = beta60^(2^3) * beta3
-    r2_beta_step(beta63,  63,  beta63,  beta126); // beta126 = beta63^(2^63) * beta63
-    r2_beta_step(beta126, 126, beta126, beta252); // beta252 = beta126^(2^126) * beta126
-    r2_beta_step(beta252, 252, beta252, beta504); // beta504 = beta252^(2^252) * beta252
-    r2_beta_step(beta504, 3,   beta3,   beta507); // beta507 = beta504^(2^3) * beta3
+//     // 1, 2, 3, 6, 12, 15, 30, 60, 63, 126, 252, 504, 507
+//     r2_beta_step(beta2,   1,   beta1,   beta3); // beta3 = beta2^(2^1) * beta1
+//     r2_beta_step(beta3,   3,   beta3,   beta6); // beta6 = beta3^(2^3) * beta3
+//     r2_beta_step(beta6,   6,   beta6,   beta12); // beta12 = beta6^(2^6) * beta6
+//     r2_beta_step(beta12,  3,   beta3,   beta15); // beta15 = beta12^(2^3) * beta3
+//     r2_beta_step(beta15,  15,  beta15,  beta30); // beta30 = beta15^(2^15) * beta15
+//     r2_beta_step(beta30,  30,  beta30,  beta60); // beta60 = beta30^(2^30) * beta30
+//     r2_beta_step(beta60,  3,   beta3,   beta63); // beta63 = beta60^(2^3) * beta3
+//     r2_beta_step(beta63,  63,  beta63,  beta126); // beta126 = beta63^(2^63) * beta63
+//     r2_beta_step(beta126, 126, beta126, beta252); // beta252 = beta126^(2^126) * beta126
+//     r2_beta_step(beta252, 252, beta252, beta504); // beta504 = beta252^(2^252) * beta252
+//     r2_beta_step(beta504, 3,   beta3,   beta507); // beta507 = beta504^(2^3) * beta3
 
-    r2_mul(beta507, beta507, hinv);
-    hinv[7] &= MASK;
-}
+//     r2_mul(beta507, beta507, hinv);
+//     hinv[7] &= MASK;
+// }
 
