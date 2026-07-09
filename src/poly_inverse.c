@@ -1,5 +1,6 @@
 #include "binary_poly.h"
 #include "poly_mod.h"
+#include "r2_frobenius_perms.h"
 
 #include <arm_neon.h>
 #include <stddef.h>
@@ -114,16 +115,63 @@ static void r2_beta_step(const uint64_t beta_k[8], const uint16_t perm[509], con
     out[7] &= MASK;
 }
 
-void r2_inverse(const uint64_t h[8], uint64_t hinv[8]) {
-    uint16_t perm1[509];
-    uint16_t perm3[509];
-    uint16_t perm6[509];
-    uint16_t perm15[509];
-    uint16_t perm30[509];
-    uint16_t perm63[509];
-    uint16_t perm126[509];
-    uint16_t perm252[509];
+// void r2_inverse(const uint64_t h[8], uint64_t hinv[8]) {
+//     uint16_t perm1[509];
+//     uint16_t perm3[509];
+//     uint16_t perm6[509];
+//     uint16_t perm15[509];
+//     uint16_t perm30[509];
+//     uint16_t perm63[509];
+//     uint16_t perm126[509];
+//     uint16_t perm252[509];
 
+//     uint64_t beta1[8];
+//     uint64_t beta2[8];
+//     uint64_t beta3[8];
+//     uint64_t beta6[8];
+//     uint64_t beta12[8];
+//     uint64_t beta15[8];
+//     uint64_t beta30[8];
+//     uint64_t beta60[8];
+//     uint64_t beta63[8];
+//     uint64_t beta126[8];
+//     uint64_t beta252[8];
+//     uint64_t beta504[8];
+//     uint64_t beta507[8];
+
+//     build_perm(1, perm1);
+//     build_perm(3, perm3);
+//     build_perm(6, perm6);
+//     build_perm(15, perm15);
+//     build_perm(30, perm30);
+//     build_perm(63, perm63);
+//     build_perm(126, perm126);
+//     build_perm(252, perm252);
+
+//     for (int i = 0; i < R2_NWORDS; i++) {
+//         beta1[i] = h[i];
+//     }
+
+//     beta1[7] &= MASK;
+
+//     r2_beta_step(beta1,   perm1,   beta1,   beta2);
+//     r2_beta_step(beta2,   perm1,   beta1,   beta3);
+//     r2_beta_step(beta3,   perm3,   beta3,   beta6);
+//     r2_beta_step(beta6,   perm6,   beta6,   beta12);
+//     r2_beta_step(beta12,  perm3,   beta3,   beta15);
+//     r2_beta_step(beta15,  perm15,  beta15,  beta30);
+//     r2_beta_step(beta30,  perm30,  beta30,  beta60);
+//     r2_beta_step(beta60,  perm3,   beta3,   beta63);
+//     r2_beta_step(beta63,  perm63,  beta63,  beta126);
+//     r2_beta_step(beta126, perm126, beta126, beta252);
+//     r2_beta_step(beta252, perm252, beta252, beta504);
+//     r2_beta_step(beta504, perm3,   beta3,   beta507);
+
+//     frobenius_square_perm(beta507, hinv, perm1);
+//     hinv[7] &= MASK;
+// }
+
+void r2_inverse(const uint64_t h[8], uint64_t hinv[8]) {
     uint64_t beta1[8];
     uint64_t beta2[8];
     uint64_t beta3[8];
@@ -138,35 +186,26 @@ void r2_inverse(const uint64_t h[8], uint64_t hinv[8]) {
     uint64_t beta504[8];
     uint64_t beta507[8];
 
-    build_perm(1, perm1);
-    build_perm(3, perm3);
-    build_perm(6, perm6);
-    build_perm(15, perm15);
-    build_perm(30, perm30);
-    build_perm(63, perm63);
-    build_perm(126, perm126);
-    build_perm(252, perm252);
-
     for (int i = 0; i < R2_NWORDS; i++) {
         beta1[i] = h[i];
     }
 
     beta1[7] &= MASK;
 
-    r2_beta_step(beta1,   perm1,   beta1,   beta2);
-    r2_beta_step(beta2,   perm1,   beta1,   beta3);
-    r2_beta_step(beta3,   perm3,   beta3,   beta6);
-    r2_beta_step(beta6,   perm6,   beta6,   beta12);
-    r2_beta_step(beta12,  perm3,   beta3,   beta15);
-    r2_beta_step(beta15,  perm15,  beta15,  beta30);
-    r2_beta_step(beta30,  perm30,  beta30,  beta60);
-    r2_beta_step(beta60,  perm3,   beta3,   beta63);
-    r2_beta_step(beta63,  perm63,  beta63,  beta126);
-    r2_beta_step(beta126, perm126, beta126, beta252);
-    r2_beta_step(beta252, perm252, beta252, beta504);
-    r2_beta_step(beta504, perm3,   beta3,   beta507);
+    r2_beta_step(beta1,   perm_1,   beta1,   beta2);
+    r2_beta_step(beta2,   perm_1,   beta1,   beta3);
+    r2_beta_step(beta3,   perm_3,   beta3,   beta6);
+    r2_beta_step(beta6,   perm_6,   beta6,   beta12);
+    r2_beta_step(beta12,  perm_3,   beta3,   beta15);
+    r2_beta_step(beta15,  perm_15,  beta15,  beta30);
+    r2_beta_step(beta30,  perm_30,  beta30,  beta60);
+    r2_beta_step(beta60,  perm_3,   beta3,   beta63);
+    r2_beta_step(beta63,  perm_63,  beta63,  beta126);
+    r2_beta_step(beta126, perm_126, beta126, beta252);
+    r2_beta_step(beta252, perm_252, beta252, beta504);
+    r2_beta_step(beta504, perm_3,   beta3,   beta507);
 
-    frobenius_square_perm(beta507, hinv, perm1);
+    frobenius_square_perm(beta507, hinv, perm_1);
     hinv[7] &= MASK;
 }
 
