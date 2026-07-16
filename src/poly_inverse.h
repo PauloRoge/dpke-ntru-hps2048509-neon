@@ -8,6 +8,7 @@
 extern "C" {
 #endif
 
+void frobenius_square_vmull(const uint64_t a[8], uint64_t out[8]);
 void r2_inverse(const uint64_t h[8], uint64_t hinv[8]);
 
 #ifdef __cplusplus

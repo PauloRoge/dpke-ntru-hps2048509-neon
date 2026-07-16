@@ -35,3 +35,6 @@ target_link_libraries(poly_mod_bench PRIVATE binary_poly libcpucycles)
 
 add_executable(poly_bench test/test_poly_bench.c)
 target_link_libraries(poly_bench PRIVATE binary_poly libcpucycles)
+
+add_executable(frobenius_bench test/test_frobenius_bench.c)
+target_link_libraries(frobenius_bench PRIVATE binary_poly libcpucycles)
