@@ -43,7 +43,8 @@ void frobenius_square_vmull(const uint64_t a[8], uint64_t out[8]) {
     out[7] &= MASK;
 }
 
-static void r2_mul(const uint64_t a[8], const uint64_t b[8], uint64_t out[8]) {
+// static
+void r2_mul(const uint64_t a[8], const uint64_t b[8], uint64_t out[8]) {
     poly64_t ap[8];
     poly64_t bp[8];
 
@@ -93,7 +94,8 @@ static void build_perm(int nperm, uint16_t p[509]) {
     }
 }
 
-static void frobenius_square_perm(const uint64_t a[8], uint64_t out[8], const uint16_t perm[509]) {
+// static
+void frobenius_square_perm(const uint64_t a[8], uint64_t out[8], const uint16_t perm[509]) {
     memset(out, 0, sizeof(uint64_t) * R2_NWORDS);
 
     for (int j = 0; j < 509; j++) {
@@ -107,7 +109,8 @@ static void frobenius_square_perm(const uint64_t a[8], uint64_t out[8], const ui
     out[7] &= MASK;
 }
 
-static void r2_beta_step(const uint64_t beta_k[8], const uint16_t perm[509], const uint64_t beta_j[8], uint64_t out[8]) {
+// static 
+void r2_beta_step(const uint64_t beta_k[8], const uint16_t perm[509], const uint64_t beta_j[8], uint64_t out[8]) {
     uint64_t a[8];
     frobenius_square_perm(beta_k, a, perm);
 

@@ -1,18 +1,3 @@
-/*
- * Benchmark (medida de tempo) permutacao pre-computada vs  frobenius_square_vmull dentro do r2_inverse (Itoh-Tsujii).
-
- * varientes:
- *   V0: todas por tabela (identica ao r2_inverse atual)
- *   V1: k=1 via vmull, restantes por tabela pré comp.
- *   V2: k<=3 via vmull
- *   V3: k<=6 via vmull
- *   V4: k<=15 via vmull
- *   V5: k<=30 via vmull
- *   V6: k<=63 via vmull
- *   V7: k<=126 via vmull
- *   V8: todas via vmull (k<=252)
- */
-
 #include "benchmark.h"
 #include "poly_mod.h"
 #include "poly_inverse.h"
@@ -29,42 +14,6 @@
 
 static inline uint8_t get_coeff(const uint64_t a[], size_t n) {
     return (uint8_t)((a[n / 64] >> (n % 64)) & 1ULL);
-}
-
-static void frobenius_square_perm(const uint64_t a[8], uint64_t out[8], const uint16_t perm[509]) {
-    memset(out, 0, sizeof(uint64_t) * R2_NWORDS);
-
-    for (int j = 0; j < 509; j++) {
-        int i = perm[j];
-
-        if (get_coeff(a, i)) {
-            out[j / 64] |= 1ULL << (j % 64);
-        }
-    }
-
-    out[7] &= MASK;
-}
-
-static void r2_mul(const uint64_t a[8], const uint64_t b[8], uint64_t out[8]) {
-    poly64_t ap[8];
-    poly64_t bp[8];
-
-    for (size_t i = 0; i < R2_NWORDS; i++) {
-        ap[i] = (poly64_t)a[i];
-        bp[i] = (poly64_t)b[i];
-    }
-
-    mul_karatsuba_512x512_to_1024_mod_x509m1(ap, bp, out);
-    out[7] &= MASK;
-}
-
-// beta_{k+j} = beta_k^(2^j) * beta_j, com frobenius por permutacao
-static void r2_beta_step(const uint64_t beta_k[8], const uint16_t perm[509], const uint64_t beta_j[8], uint64_t out[8]) {
-    uint64_t a[8];
-    frobenius_square_perm(beta_k, a, perm);
-
-    r2_mul(a, beta_j, out);
-    out[7] &= MASK;
 }
 
 // beta_{k+j} = beta_k^(2^j) * beta_j, com frobenius por j lacos de vmull
