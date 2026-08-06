@@ -1,6 +1,7 @@
 #include "binary_poly.h"
 #include "poly_mod.h"
 #include "r2_frobenius_perms.h"
+#include "r2_frobenius_perms_byte.h"
 
 #include <arm_neon.h>
 #include <stddef.h>
@@ -77,6 +78,9 @@ void r2_inverse_ltr(const uint64_t h[8], uint64_t hinv[8]) {
     hinv[7] &= MASK;
 }
 
+// Funções para gerar permutações em tempo de execução
+
+// v1. retorna permutação de bits onde nperm é o número de quadrados
 static void build_perm(int nperm, uint16_t p[509]) {
     for (int j = 0; j < 509; j++) {
         int idx = j;
@@ -94,14 +98,39 @@ static void build_perm(int nperm, uint16_t p[509]) {
     }
 }
 
-// static
-void frobenius_square_perm(const uint64_t a[8], uint64_t out[8], const uint16_t perm[509]) {
+//v2. retornar 2 vetores de permutações; vetor de byte e bit
+void build_perm_byte(const uint16_t perm[509], char pB[512], char pb[512]) {
+    for (int j = 0; j < 509; j++) {
+        pB[j] = perm[j]/8;
+        pb[j] = perm[j]%8;
+    }
+    for (int j = 509; j < 512; j++) {
+        pB[j] = 0;
+        pb[j] = 0;
+    }
+}
+
+// Preenche a2 
+// void frobenius_square_perm(const uint64_t a[8], uint64_t out[8], const uint16_t perm[509]) {
+//     memset(out, 0, sizeof(uint64_t) * R2_NWORDS);
+
+//     for (int j = 0; j < 509; j++) {
+//         int i = perm[j];
+
+//         if (get_coeff(a, i)) {
+//             out[j / 64] |= 1ULL << (j % 64);
+//         }
+//     }
+
+//     out[7] &= MASK;
+// }
+
+
+void frobenius_square_perm(const uint8_t a[64], uint64_t out[8], const char pB[512], const char pb[512]) {
     memset(out, 0, sizeof(uint64_t) * R2_NWORDS);
 
     for (int j = 0; j < 509; j++) {
-        int i = perm[j];
-
-        if (get_coeff(a, i)) {
+        if ((a[pB[j]] >> pb[j]) & 1) {
             out[j / 64] |= 1ULL << (j % 64);
         }
     }
@@ -110,12 +139,57 @@ void frobenius_square_perm(const uint64_t a[8], uint64_t out[8], const uint16_t 
 }
 
 // static 
-void r2_beta_step(const uint64_t beta_k[8], const uint16_t perm[509], const uint64_t beta_j[8], uint64_t out[8]) {
-    uint64_t a[8];
-    frobenius_square_perm(beta_k, a, perm);
+// void r2_beta_step(const uint64_t beta_k[8], const uint16_t perm[509], const uint64_t beta_j[8], uint64_t out[8]) {
+//     uint64_t a[8];  
+//     frobenius_square_perm(beta_k, a, perm);
+
+//     r2_mul(a, beta_j, out);
+//     out[7] &= MASK;
+// }
+void r2_beta_step(const uint64_t beta_k[8], const char pB[512], const char pb[512], const uint64_t beta_j[8], uint64_t out[8]) {
+    uint64_t a[8];  
+    frobenius_square_perm((const uint8_t *)beta_k, a, pB, pb);
 
     r2_mul(a, beta_j, out);
     out[7] &= MASK;
+}
+
+void r2_inverse(const uint64_t h[8], uint64_t hinv[8]) {
+    uint64_t beta1[8];
+    uint64_t beta2[8];
+    uint64_t beta3[8];
+    uint64_t beta6[8];
+    uint64_t beta12[8];
+    uint64_t beta15[8];
+    uint64_t beta30[8];
+    uint64_t beta60[8];
+    uint64_t beta63[8];
+    uint64_t beta126[8];
+    uint64_t beta252[8];
+    uint64_t beta504[8];
+    uint64_t beta507[8];
+
+    for (int i = 0; i < R2_NWORDS; i++) {
+        beta1[i] = h[i];
+    }
+
+    beta1[7] &= MASK;
+
+    r2_beta_step(beta1,   r2_frob_pB_1,   r2_frob_pb_1,   beta1,   beta2);
+    r2_beta_step(beta2,   r2_frob_pB_1,   r2_frob_pb_1,   beta1,   beta3);
+    r2_beta_step(beta3,   r2_frob_pB_3,   r2_frob_pb_3,   beta3,   beta6);
+    r2_beta_step(beta6,   r2_frob_pB_6,   r2_frob_pb_6,   beta6,   beta12);
+    r2_beta_step(beta12,  r2_frob_pB_3,   r2_frob_pb_3,   beta3,   beta15);
+    r2_beta_step(beta15,  r2_frob_pB_15,  r2_frob_pb_15,  beta15,  beta30);
+    r2_beta_step(beta30,  r2_frob_pB_30,  r2_frob_pb_30,  beta30,  beta60);
+    r2_beta_step(beta60,  r2_frob_pB_3,   r2_frob_pb_3,   beta3,   beta63);
+    r2_beta_step(beta63,  r2_frob_pB_63,  r2_frob_pb_63,  beta63,  beta126);
+    r2_beta_step(beta126, r2_frob_pB_126, r2_frob_pb_126, beta126, beta252);
+    r2_beta_step(beta252, r2_frob_pB_252, r2_frob_pb_252, beta252, beta504);
+    r2_beta_step(beta504, r2_frob_pB_3,   r2_frob_pb_3,   beta3,   beta507);
+
+    frobenius_square_perm((const uint8_t *)beta507, hinv, r2_frob_pB_1, r2_frob_pb_1);
+    hinv[7] &= MASK;
 }
 
 // void r2_inverse(const uint64_t h[8], uint64_t hinv[8]) {
@@ -174,43 +248,43 @@ void r2_beta_step(const uint64_t beta_k[8], const uint16_t perm[509], const uint
 //     hinv[7] &= MASK;
 // }
 
-void r2_inverse(const uint64_t h[8], uint64_t hinv[8]) {
-    uint64_t beta1[8];
-    uint64_t beta2[8];
-    uint64_t beta3[8];
-    uint64_t beta6[8];
-    uint64_t beta12[8];
-    uint64_t beta15[8];
-    uint64_t beta30[8];
-    uint64_t beta60[8];
-    uint64_t beta63[8];
-    uint64_t beta126[8];
-    uint64_t beta252[8];
-    uint64_t beta504[8];
-    uint64_t beta507[8];
+// void r2_inverse(const uint64_t h[8], uint64_t hinv[8]) {
+//     uint64_t beta1[8];
+//     uint64_t beta2[8];
+//     uint64_t beta3[8];
+//     uint64_t beta6[8];
+//     uint64_t beta12[8];
+//     uint64_t beta15[8];
+//     uint64_t beta30[8];
+//     uint64_t beta60[8];
+//     uint64_t beta63[8];
+//     uint64_t beta126[8];
+//     uint64_t beta252[8];
+//     uint64_t beta504[8];
+//     uint64_t beta507[8];
 
-    for (int i = 0; i < R2_NWORDS; i++) {
-        beta1[i] = h[i];
-    }
+//     for (int i = 0; i < R2_NWORDS; i++) {
+//         beta1[i] = h[i];
+//     }
 
-    beta1[7] &= MASK;
+//     beta1[7] &= MASK;
 
-    r2_beta_step(beta1,   perm_1,   beta1,   beta2);
-    r2_beta_step(beta2,   perm_1,   beta1,   beta3);
-    r2_beta_step(beta3,   perm_3,   beta3,   beta6);
-    r2_beta_step(beta6,   perm_6,   beta6,   beta12);
-    r2_beta_step(beta12,  perm_3,   beta3,   beta15);
-    r2_beta_step(beta15,  perm_15,  beta15,  beta30);
-    r2_beta_step(beta30,  perm_30,  beta30,  beta60);
-    r2_beta_step(beta60,  perm_3,   beta3,   beta63);
-    r2_beta_step(beta63,  perm_63,  beta63,  beta126);
-    r2_beta_step(beta126, perm_126, beta126, beta252);
-    r2_beta_step(beta252, perm_252, beta252, beta504);
-    r2_beta_step(beta504, perm_3,   beta3,   beta507);
+//     r2_beta_step(beta1,   perm_1,   beta1,   beta2);
+//     r2_beta_step(beta2,   perm_1,   beta1,   beta3);
+//     r2_beta_step(beta3,   perm_3,   beta3,   beta6);
+//     r2_beta_step(beta6,   perm_6,   beta6,   beta12);
+//     r2_beta_step(beta12,  perm_3,   beta3,   beta15);
+//     r2_beta_step(beta15,  perm_15,  beta15,  beta30);
+//     r2_beta_step(beta30,  perm_30,  beta30,  beta60);
+//     r2_beta_step(beta60,  perm_3,   beta3,   beta63);
+//     r2_beta_step(beta63,  perm_63,  beta63,  beta126);
+//     r2_beta_step(beta126, perm_126, beta126, beta252);
+//     r2_beta_step(beta252, perm_252, beta252, beta504);
+//     r2_beta_step(beta504, perm_3,   beta3,   beta507);
 
-    frobenius_square_perm(beta507, hinv, perm_1);
-    hinv[7] &= MASK;
-}
+//     frobenius_square_perm(beta507, hinv, perm_1);
+//     hinv[7] &= MASK;
+// }
 
 // static void frobenius_square(const uint64_t a[8], uint64_t out[8]) {
 //     memset(out, 0, sizeof(uint64_t) * R2_NWORDS);
