@@ -21,6 +21,24 @@ endif()
 include(ExternalProject)
 find_program(MAKE_EXE NAMES make gmake nmake)
 set(libcpucycles_INSTALL_DIR "${CMAKE_BINARY_DIR}/libcpucycles")
+set(libcpucycles_SOURCE_DIR "${libcpucycles_INSTALL_DIR}/src/libcpucycles_external")
+
+if(CMAKE_CROSSCOMPILING)
+    # configure maps aarch64/arm64/armv8 onto its "arm64" host directory.
+    set(libcpucycles_HOST "--host=${CMAKE_SYSTEM_PROCESSOR}")
+
+    # libcpucycles' configure picks the first working compiler listed in
+    # compilers/default and ignores CC/CXX entirely, so the only way to hand it
+    # a cross compiler is to rewrite that file before building. Flags mirror the
+    # upstream default line.
+    set(libcpucycles_COMPILERS_DEFAULT
+        "${CMAKE_CURRENT_BINARY_DIR}/libcpucycles-compilers-default")
+    file(WRITE "${libcpucycles_COMPILERS_DEFAULT}"
+        "${CMAKE_C_COMPILER} -Wall -fPIC -fwrapv -O -fvisibility=hidden\n")
+    set(libcpucycles_PATCH_COMMAND ${CMAKE_COMMAND} -E copy
+        "${libcpucycles_COMPILERS_DEFAULT}"
+        "${libcpucycles_SOURCE_DIR}/compilers/default")
+endif()
 
 ExternalProject_Add(libcpucycles_external
     PREFIX ${libcpucycles_INSTALL_DIR}
