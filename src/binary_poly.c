@@ -1,5 +1,4 @@
 #include "binary_poly.h"
-
 #include <arm_neon.h>
 #include <stddef.h>
 #include <stdint.h>

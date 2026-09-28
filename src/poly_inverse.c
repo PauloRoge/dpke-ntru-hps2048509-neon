@@ -127,14 +127,17 @@ void build_perm_byte(const uint16_t perm[509], char pB[512], char pb[512]) {
 
 
 void frobenius_square_perm(const uint8_t a[64], uint64_t out[8], const char pB[512], const char pb[512]) {
+    uint8_t t[16];
     memset(out, 0, sizeof(uint64_t) * R2_NWORDS);
 
-    for (int j = 0; j < 509; j++) {
-        if ((a[pB[j]] >> pb[j]) & 1) {
-            out[j / 64] |= 1ULL << (j % 64);
-        }
-    }
+    for (int i = 0; i < 512; i += 16) {
+        for (int j = 0; j < 16; j++)         
+            t[j] = a[pB[i+j]];
 
+        for (int j = 0; j < 16; j++)         
+            if ((t[j] >> pb[i+j]) & 1)
+                out[(i+j) / 64] |= 1ULL << ((i+j) % 64);
+    }
     out[7] &= MASK;
 }
 
